@@ -1,0 +1,17 @@
+{
+  "type": "SCANNING_FAILED",
+  "occur_at": 1681994500,
+  "operator": "scanner",
+  "event_data": {
+    "resources": [
+      {
+        "digest": "sha256:deadbeef",
+        "tag": "broken",
+        "resource_url": "harbor.example.com/library/broken:broken"
+      }
+    ],
+    "repository": {
+      "repo_full_name": "library/broken"
+    }
+  }
+}

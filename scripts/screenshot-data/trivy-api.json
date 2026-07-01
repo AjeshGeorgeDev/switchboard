@@ -1,0 +1,30 @@
+{
+  "artifact_name": "harbor.internal/prod/api:v2.4.1",
+  "Results": [
+    {
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2024-1234",
+          "Severity": "CRITICAL",
+          "PkgName": "openssl",
+          "InstalledVersion": "3.0.12",
+          "FixedVersion": "3.0.13"
+        },
+        {
+          "VulnerabilityID": "CVE-2024-5678",
+          "Severity": "HIGH",
+          "PkgName": "glibc",
+          "InstalledVersion": "2.36-9",
+          "FixedVersion": "2.36-10"
+        },
+        {
+          "VulnerabilityID": "CVE-2024-9012",
+          "Severity": "MEDIUM",
+          "PkgName": "curl",
+          "InstalledVersion": "8.4.0",
+          "FixedVersion": "8.5.0"
+        }
+      ]
+    }
+  ]
+}

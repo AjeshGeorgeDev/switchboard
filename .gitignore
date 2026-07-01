@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+backups/
+package-lock.json
+frontend/dist/
+backend/internal/static/dist/
+
+# Environment
+.env
+.env.local
+
+# Go
+backend/bin/
+backend/tmp/
+*.exe
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Build
+dist/

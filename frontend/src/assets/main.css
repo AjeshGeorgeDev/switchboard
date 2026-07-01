@@ -1,0 +1,93 @@
+@import "tailwindcss";
+@import "tailwindcss-primeui";
+@import "primeicons/primeicons.css";
+
+:root {
+  --sb-bg: var(--p-surface-100, #eef2f6);
+  --sb-bg-accent: var(--p-primary-50, #e0e7ff);
+  --sb-surface: var(--p-surface-0, #ffffff);
+  --sb-border: var(--p-content-border-color, #e2e8f0);
+  --sb-text: var(--p-text-color, #0f172a);
+  --sb-muted: var(--p-text-muted-color, #64748b);
+  --sb-primary: var(--p-primary-color, #4f46e5);
+  --sb-primary-hover: var(--p-primary-hover-color, #4338ca);
+  --sb-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --sb-radius: var(--p-content-border-radius, 14px);
+  --sb-radius-sm: 10px;
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    min-height: 100%;
+  }
+
+  body {
+    @apply m-0 bg-surface-100 font-sans text-color antialiased;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply m-0 tracking-tight;
+  }
+
+  p {
+    @apply m-0;
+  }
+
+  a {
+    @apply text-inherit;
+  }
+}
+
+@layer components {
+  .page {
+    @apply flex flex-col gap-6;
+  }
+
+  .page-header {
+    @apply flex flex-wrap items-end justify-between gap-4;
+  }
+
+  .page-header h1 {
+    @apply text-3xl font-bold;
+  }
+
+  .page-header p {
+    @apply mt-1.5 text-sm text-muted-color;
+  }
+
+  .surface-card {
+    @apply rounded-border border border-surface bg-surface-0 shadow-sm;
+  }
+
+  .empty-state,
+  .table-empty {
+    @apply rounded-border border border-dashed border-surface bg-surface-0 px-6 py-12 text-center text-muted-color;
+  }
+
+  .field {
+    @apply mb-4 flex flex-col gap-1.5;
+  }
+
+  .field label {
+    @apply text-sm font-semibold text-color;
+  }
+
+  .field-row {
+    @apply mb-4 flex flex-row items-center gap-2;
+  }
+
+  .field-row label {
+    @apply m-0 text-sm font-semibold text-color;
+  }
+}
+
+@layer utilities {
+  .w-full {
+    width: 100%;
+  }
+}

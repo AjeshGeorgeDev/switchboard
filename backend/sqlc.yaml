@@ -1,0 +1,35 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "sqlc/queries"
+    schema: "sqlc/schema.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_empty_slices: true
+        overrides:
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - db_type: "timestamptz"
+            go_type: "time.Time"
+          - db_type: "auth_type"
+            go_type: "string"
+          - db_type: "access_type"
+            go_type: "string"
+          - db_type: "cve_severity"
+            go_type: "string"
+          - db_type: "finding_source"
+            go_type: "string"
+          - db_type: "deploy_status"
+            go_type: "string"
+          - db_type: "notification_channel"
+            go_type: "string"
+          - db_type: "notification_event_type"
+            go_type: "string"
+          - db_type: "notification_severity"
+            go_type: "string"

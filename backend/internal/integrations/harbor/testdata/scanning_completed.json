@@ -1,0 +1,38 @@
+{
+  "type": "SCANNING_COMPLETED",
+  "occur_at": 1681994400,
+  "operator": "admin",
+  "event_data": {
+    "resources": [
+      {
+        "digest": "sha256:abc123def456",
+        "tag": "v1.2.0",
+        "resource_url": "harbor.example.com/library/nginx:v1.2.0",
+        "scan_overview": {
+          "application/vnd.security.vulnerability.report; version=1.1": {
+            "scan_status": "Success",
+            "severity": "High",
+            "duration": 12,
+            "report_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "summary": {
+              "summary": {
+                "Critical": 1,
+                "High": 2,
+                "Medium": 5,
+                "Low": 10,
+                "Unknown": 0
+              }
+            }
+          }
+        }
+      }
+    ],
+    "repository": {
+      "date_created": 1681990000,
+      "name": "nginx",
+      "namespace": "library",
+      "repo_full_name": "library/nginx",
+      "repo_type": "private"
+    }
+  }
+}

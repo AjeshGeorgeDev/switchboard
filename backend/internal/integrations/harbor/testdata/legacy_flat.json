@@ -1,0 +1,11 @@
+{
+  "repository_name": "library/legacy-app",
+  "image_name": "harbor.example.com/library/legacy-app",
+  "image_tag": "2.0.0",
+  "operator": "deploy-bot",
+  "status": "success",
+  "critical_count": 0,
+  "high_count": 1,
+  "medium_count": 3,
+  "low_count": 0
+}

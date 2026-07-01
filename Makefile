@@ -1,0 +1,61 @@
+.PHONY: dev-up dev-down migrate-up migrate-down sqlc-generate build run backend-dev test frontend-install frontend-dev frontend-build db-backup postgres-upgrade-16-to-17 screenshot-data screenshots
+
+DATABASE_URL ?= postgres://switchboard:switchboard@localhost:5432/switchboard?sslmode=disable
+REDIS_URL ?= redis://localhost:6379/0
+PORT ?= 8080
+
+-include .env
+export
+GOPATH_BIN := $(shell go env GOPATH)/bin
+
+dev-up:
+	docker compose up -d
+
+dev-down:
+	docker compose down
+
+migrate-up:
+	cd backend && "$(GOPATH_BIN)/migrate" -path migrations -database "$(DATABASE_URL)" up
+
+migrate-down:
+	cd backend && "$(GOPATH_BIN)/migrate" -path migrations -database "$(DATABASE_URL)" down 1
+
+sqlc-generate:
+	cd backend && "$(GOPATH_BIN)/sqlc" generate
+
+build: frontend-build
+	cd backend && go build -o bin/server ./cmd/server
+
+run:
+	cd backend && DATABASE_URL="$(DATABASE_URL)" REDIS_URL="$(REDIS_URL)" PORT="$(PORT)" go run ./cmd/server
+
+backend-dev:
+	@test -x "$(GOPATH_BIN)/air" || (echo 'Install air: go install github.com/air-verse/air@latest' && exit 1)
+	cd backend && DATABASE_URL="$(DATABASE_URL)" REDIS_URL="$(REDIS_URL)" PORT="$(PORT)" "$(GOPATH_BIN)/air"
+
+test:
+	cd backend && go test ./...
+
+frontend-install:
+	cd frontend && pnpm install
+
+frontend-dev:
+	cd frontend && PORT="$(PORT)" pnpm run dev
+
+frontend-build:
+	cd frontend && pnpm run build
+
+db-backup:
+	bash scripts/postgres-backup.sh
+
+postgres-upgrade-16-to-17:
+	bash scripts/postgres-upgrade-16-to-17.sh
+
+screenshot-data:
+	bash scripts/ensure-screenshot-user.sh
+	APP_BASE_URL=http://localhost:$(PORT) bash scripts/seed-screenshot-data.sh
+
+screenshots:
+	@test -d node_modules/playwright || npm install --no-save playwright@1.50.0
+	@npx playwright install chromium
+	node scripts/capture-screenshots.mjs

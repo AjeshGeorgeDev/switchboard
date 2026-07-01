@@ -1,0 +1,11 @@
+{
+  "app_name": "api",
+  "image_name": "harbor.internal/prod/api",
+  "image_tag": "v2.4.0",
+  "triggered_by": "ci-pipeline",
+  "status": "success",
+  "critical_count": 1,
+  "high_count": 3,
+  "medium_count": 4,
+  "low_count": 8
+}

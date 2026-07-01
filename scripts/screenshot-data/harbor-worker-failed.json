@@ -1,0 +1,11 @@
+{
+  "app_name": "worker",
+  "image_name": "harbor.internal/prod/worker",
+  "image_tag": "v1.8.2",
+  "triggered_by": "deploy-bot",
+  "status": "failed",
+  "critical_count": 2,
+  "high_count": 5,
+  "medium_count": 3,
+  "low_count": 1
+}

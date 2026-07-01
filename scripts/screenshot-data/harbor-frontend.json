@@ -1,0 +1,11 @@
+{
+  "app_name": "frontend",
+  "image_name": "harbor.internal/prod/frontend",
+  "image_tag": "v3.1.0",
+  "triggered_by": "release-please",
+  "status": "partial",
+  "critical_count": 0,
+  "high_count": 1,
+  "medium_count": 2,
+  "low_count": 6
+}

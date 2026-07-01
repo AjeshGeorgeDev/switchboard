@@ -1,0 +1,19 @@
+{
+  "type": "PUSH_ARTIFACT",
+  "occur_at": 1681994300,
+  "operator": "ci-bot",
+  "event_data": {
+    "resources": [
+      {
+        "digest": "sha256:feedface1234",
+        "tag": "latest",
+        "resource_url": "harbor.example.com/library/myapp:latest"
+      }
+    ],
+    "repository": {
+      "name": "myapp",
+      "namespace": "library",
+      "repo_full_name": "library/myapp"
+    }
+  }
+}

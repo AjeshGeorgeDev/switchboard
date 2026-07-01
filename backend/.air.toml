@@ -1,0 +1,22 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/server ./cmd/server"
+  bin = "./tmp/server"
+  include_ext = ["go", "html"]
+  exclude_dir = ["tmp", "bin", "internal/static"]
+  exclude_regex = ["_test\\.go$"]
+  delay = 800
+  stop_on_error = true
+  send_interrupt = true
+  kill_delay = 500
+
+[log]
+  time = false
+
+[misc]
+  clean_on_exit = true
+
+[env]
+  PORT = "8080"
