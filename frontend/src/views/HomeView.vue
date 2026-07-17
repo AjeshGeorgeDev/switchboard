@@ -117,12 +117,10 @@ watch(
       </div>
     </header>
 
-    <main class="relative z-10 mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-8 sm:py-12">
-      <div class="mb-8 max-w-2xl">
+    <main class="relative z-10 mx-auto w-full max-w-6xl flex-1 px-5 py-5 sm:px-8 sm:py-6">
+      <div class="mb-5 max-w-2xl">
         <h1 class="text-3xl font-bold tracking-tight text-color sm:text-4xl">Applications</h1>
-        <p class="mt-2 text-base text-muted-color">
-          Jump to internal tools and services — no account required.
-        </p>
+        
       </div>
 
       <div
