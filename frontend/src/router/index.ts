@@ -30,6 +30,7 @@ const router = createRouter({
       redirect: '/admin/configuration/identity',
       children: [
         { path: 'identity', component: () => import('../views/admin/configuration/OidcConfigView.vue') },
+        { path: 'appearance', component: () => import('../views/admin/configuration/AppearanceConfigView.vue') },
         { path: 'harbor', component: () => import('../views/admin/configuration/HarborConfigView.vue') },
         { path: 'trivy', component: () => import('../views/admin/configuration/TrivyConfigView.vue') },
         { path: 'webhooks', component: () => import('../views/admin/configuration/WebhookLogView.vue') },

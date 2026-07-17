@@ -3,17 +3,33 @@
 @import "primeicons/primeicons.css";
 
 :root {
-  --sb-bg: var(--p-surface-100, #eef2f6);
-  --sb-bg-accent: var(--p-primary-50, #e0e7ff);
-  --sb-surface: var(--p-surface-0, #ffffff);
-  --sb-border: var(--p-content-border-color, #e2e8f0);
-  --sb-text: var(--p-text-color, #0f172a);
-  --sb-muted: var(--p-text-muted-color, #64748b);
-  --sb-primary: var(--p-primary-color, #4f46e5);
-  --sb-primary-hover: var(--p-primary-hover-color, #4338ca);
-  --sb-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
-  --sb-radius: var(--p-content-border-radius, 14px);
-  --sb-radius-sm: 10px;
+  --sb-bg: #f4f5f9;
+  --sb-bg-accent: var(--p-primary-50, #eef2ff);
+  --sb-bg-glow: radial-gradient(ellipse 80% 50% at 100% 0%, rgba(99, 102, 241, 0.09), transparent 55%);
+  --sb-surface: #ffffff;
+  --sb-border: #e4e7ef;
+  --sb-text: #111827;
+  --sb-muted: #6b7280;
+  --sb-primary: #4f46e5;
+  --sb-primary-hover: #4338ca;
+  --sb-primary-soft: #eef2ff;
+  --sb-nav-active-bg: #eef2ff;
+  --sb-nav-active-color: #4338ca;
+  --sb-nav-active-bar: #4f46e5;
+  --sb-sidebar-bg: #ffffff;
+  --sb-sidebar-border: #e8eaf0;
+  --sb-sidebar-text: #374151;
+  --sb-sidebar-muted: #9ca3af;
+  --sb-sidebar-hover: #f3f4f6;
+  --sb-topbar-bg: rgba(255, 255, 255, 0.92);
+  --sb-topbar-accent: #4f46e5;
+  --sb-card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 16px rgba(15, 23, 42, 0.04);
+  --sb-auth-gradient: radial-gradient(circle at top left, rgba(99, 102, 241, 0.22), transparent 42%),
+    linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #312e81 100%);
+  --sb-home-glow: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(79, 70, 229, 0.12), transparent);
+  --sb-shadow: var(--sb-card-shadow);
+  --sb-radius: 12px;
+  --sb-radius-sm: 8px;
 }
 
 @layer base {
@@ -24,8 +40,10 @@
   }
 
   body {
-    @apply m-0 bg-surface-100 font-sans text-color antialiased;
+    @apply m-0 font-sans antialiased;
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--sb-bg);
+    color: var(--sb-text);
   }
 
   h1,
@@ -61,7 +79,11 @@
   }
 
   .surface-card {
-    @apply rounded-border border border-surface bg-surface-0 shadow-sm;
+    @apply rounded-border border;
+    background: var(--sb-surface);
+    border-color: var(--sb-border);
+    box-shadow: var(--sb-card-shadow);
+    border-radius: var(--sb-radius);
   }
 
   .empty-state,

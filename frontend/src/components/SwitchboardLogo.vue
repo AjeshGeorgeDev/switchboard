@@ -70,7 +70,7 @@ defineProps<{
 }
 
 .variant-gradient {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: linear-gradient(135deg, var(--sb-primary), var(--p-primary-400, var(--sb-primary-hover)));
 }
 
 .variant-glass {

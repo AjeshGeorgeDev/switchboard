@@ -19,6 +19,7 @@ import (
 	"github.com/switchboard/switchboard/internal/notifications"
 	"github.com/switchboard/switchboard/internal/rbac"
 	"github.com/switchboard/switchboard/internal/security"
+	"github.com/switchboard/switchboard/internal/settings"
 	"github.com/switchboard/switchboard/internal/setup"
 	"github.com/switchboard/switchboard/internal/static"
 	"github.com/switchboard/switchboard/internal/users"
@@ -69,6 +70,7 @@ func New(ctx context.Context, cfg config.Config) (*Server, error) {
 	notifyH := notifications.NewHandler(queries, cfg)
 	webhookH := webhooks.NewHandler(asynqClient, cfg, queries)
 	auditH := audit.NewHandler(queries)
+	settingsH := settings.NewHandler(queries)
 	setupH := setup.NewHandler(pool, queries, localAuth)
 	setupGate := setup.BlockIfIncomplete(queries)
 
@@ -85,6 +87,8 @@ func New(ctx context.Context, cfg config.Config) (*Server, error) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
+
+	r.Get("/api/settings/theme", settingsH.GetTheme)
 
 	r.Route("/api/setup", func(r chi.Router) {
 		r.Get("/status", setupH.Status)
@@ -179,6 +183,7 @@ func New(ctx context.Context, cfg config.Config) (*Server, error) {
 		r.Get("/webhook-events", webhookH.ListEvents)
 		r.Get("/webhook-events/{id}", webhookH.GetEvent)
 		r.Get("/audit-logs", auditH.List)
+		r.Put("/settings/theme", settingsH.UpdateTheme)
 	})
 
 	}) // setupGate group

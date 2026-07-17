@@ -48,7 +48,7 @@ async function logout() {
 
 <template>
   <div class="layout">
-    <aside class="side-nav surface-card">
+    <aside class="side-nav">
       <nav class="nav-section">
         <p class="nav-label">Workspace</p>
         <button
@@ -81,7 +81,7 @@ async function logout() {
     </aside>
 
     <div class="main-column">
-      <header class="topbar surface-card">
+      <header class="topbar">
         <button class="brand" type="button" @click="router.push('/launcher')">
           <SwitchboardLogo />
           <span>Switchboard</span>
@@ -110,7 +110,7 @@ async function logout() {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   background:
-    radial-gradient(circle at top right, rgba(79, 70, 229, 0.08), transparent 30%),
+    var(--sb-bg-glow),
     var(--sb-bg);
 }
 
@@ -127,9 +127,23 @@ async function logout() {
   gap: 1rem;
   padding: 0.85rem 1.5rem;
   border-radius: 0;
-  border-left: none;
-  border-right: none;
-  border-top: none;
+  border: none;
+  border-bottom: 1px solid var(--sb-border);
+  background: var(--sb-topbar-bg);
+  backdrop-filter: blur(12px);
+  box-shadow: none;
+  position: relative;
+}
+
+.topbar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--sb-topbar-accent);
+  opacity: 0.85;
 }
 
 .brand {
@@ -176,13 +190,14 @@ async function logout() {
   top: 0;
   align-self: start;
   border-radius: 0;
-  border-top: none;
-  border-left: none;
-  border-bottom: none;
+  border: none;
+  border-right: 1px solid var(--sb-sidebar-border);
   padding: 1.25rem 0.85rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  background: var(--sb-sidebar-bg);
+  box-shadow: none;
 }
 
 .nav-section {
@@ -197,7 +212,8 @@ async function logout() {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--sb-muted);
+  color: var(--sb-sidebar-muted);
+  opacity: 0.9;
 }
 
 .nav-link {
@@ -207,7 +223,7 @@ async function logout() {
   width: 100%;
   border: none;
   background: transparent;
-  color: var(--sb-muted);
+  color: var(--sb-sidebar-text);
   font: inherit;
   font-size: 0.9rem;
   font-weight: 600;
@@ -219,13 +235,14 @@ async function logout() {
 }
 
 .nav-link:hover {
-  background: #f1f5f9;
-  color: var(--sb-text);
+  background: var(--sb-sidebar-hover);
+  color: var(--sb-nav-active-color);
 }
 
 .nav-link.active {
-  background: #eef2ff;
-  color: #4338ca;
+  background: var(--sb-nav-active-bg);
+  color: var(--sb-nav-active-color);
+  box-shadow: inset 3px 0 0 var(--sb-nav-active-bar);
 }
 
 .nav-link i {

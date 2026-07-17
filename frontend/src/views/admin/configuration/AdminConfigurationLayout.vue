@@ -8,6 +8,7 @@ const router = useRouter()
 
 const tabs = [
   { label: 'Identity', to: '/admin/configuration/identity', icon: 'pi pi-key' },
+  { label: 'Appearance', to: '/admin/configuration/appearance', icon: 'pi pi-palette' },
   { label: 'Harbor', to: '/admin/configuration/harbor', icon: 'pi pi-server' },
   { label: 'Trivy', to: '/admin/configuration/trivy', icon: 'pi pi-shield' },
   { label: 'Webhooks', to: '/admin/configuration/webhooks', icon: 'pi pi-send' },
@@ -24,7 +25,7 @@ function isActive(path: string) {
   <div class="page">
     <PageHeader
       title="Configuration"
-      subtitle="Integrations and notification delivery."
+      subtitle="Integrations, appearance, and notification delivery."
     />
 
     <nav class="config-tabs" aria-label="Configuration sections">
@@ -54,7 +55,7 @@ function isActive(path: string) {
   gap: 0.35rem;
   margin-bottom: 1rem;
   padding: 0.35rem;
-  background: var(--sb-bg);
+  background: color-mix(in srgb, var(--sb-primary) 8%, var(--sb-surface));
   border-radius: var(--sb-radius-sm);
   border: 1px solid var(--sb-border);
 }
@@ -76,13 +77,13 @@ function isActive(path: string) {
 }
 
 .config-tab:hover {
-  background: #fff;
+  background: var(--sb-surface);
   color: var(--sb-text);
 }
 
 .config-tab.active {
-  background: #fff;
-  color: #4338ca;
+  background: var(--sb-surface);
+  color: var(--sb-primary);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 

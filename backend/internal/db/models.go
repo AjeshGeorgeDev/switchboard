@@ -446,6 +446,12 @@ type AppRoleAccess struct {
 	RoleID        uuid.UUID `json:"role_id"`
 }
 
+type AppSetting struct {
+	Key       string    `json:"key"`
+	Value     string    `json:"value"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type Application struct {
 	ID          uuid.UUID   `json:"id"`
 	Name        string      `json:"name"`

@@ -25,9 +25,7 @@ import SwitchboardLogo from './SwitchboardLogo.vue'
   min-height: 100vh;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  background:
-    radial-gradient(circle at top left, rgba(79, 70, 229, 0.18), transparent 42%),
-    linear-gradient(160deg, #0f172a 0%, #1e293b 48%, #312e81 100%);
+  background: var(--sb-auth-gradient);
 }
 
 .auth-brand {
