@@ -279,7 +279,7 @@ Or pull from your private Harbor without building on the host:
 
 ```bash
 docker login harbor.example.com
-export SWITCHBOARD_IMAGE=harbor.example.com/switchboard/switchboard:12345
+export SWITCHBOARD_IMAGE=harbor.example.com/switchboard/switchboard:main-12345
 docker compose -f docker-compose.prod.yml pull app
 docker compose -f docker-compose.prod.yml up -d
 ```
@@ -319,11 +319,11 @@ Terminate TLS and proxy to `127.0.0.1:8080`. Preserve the original host and sche
 
    | Variable | Example | Notes |
    |----------|---------|--------|
-   | `HARBORHOST` | `harbor.example.com` | Hostname only (no `https://`) |
-   | `HARBOR_USERNAME` | `robot$switchboard+ci` | Robot or user with push |
+   | `HARBOR_HOST` | `https://harbor.example.com` | `https://` is stripped for image tags |
+   | `HARBOR_USER` | `robot$switchboard+ci` | Robot or user with push |
    | `HARBOR_PASSWORD` | *(secret)* | Lock this variable |
 
-3. Set `imageRepository` in the YAML to Harbor’s `project/repo` path (default `switchboard/switchboard`).
+3. Set `HARBOR_PROJECT` / `IMAGE_NAME` in the YAML (default `switchboard` / `switchboard`). Image tags are `{branch}-{BuildId}` and `{branch}-latest`.
 4. Create the pipeline from this YAML (`pool: Default`).
 5. Optional remote deploy: set `enableRemoteDeploy: true`, add SSH connection `switchboard-ssh`, Environment `production`, and variable group `switchboard-deploy` with `DEPLOY_PATH`. Deploy reuses the `HARBOR` group to log in on the target host before pull.
 

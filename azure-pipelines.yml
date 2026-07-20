@@ -10,11 +10,11 @@
 #
 # Setup:
 # 1. Pipelines → Library → Variable group "HARBOR" with:
-#      HARBORHOST       — hostname only, e.g. harbor.example.com (no https://)
-#      HARBOR_USERNAME  — robot or user with push
+#      HARBOR_HOST      — e.g. https://harbor.example.com (https:// is stripped for image tags)
+#      HARBOR_USER      — robot or user with push
 #      HARBOR_PASSWORD  — secret (lock the variable)
 # 2. Authorize the variable group for this pipeline
-# 3. Harbor project + robot with push; set imageRepository to project/repo
+# 3. Harbor project + robot with push; set HARBOR_PROJECT / IMAGE_NAME below
 # 4. Optional deploy: variable group switchboard-deploy (DEPLOY_PATH) + SSH switchboard-ssh
 
 trigger:
@@ -38,12 +38,12 @@ pool:
 
 variables:
   - group: HARBOR
-  - name: imageRepository
-    value: switchboard/switchboard
+  - name: HARBOR_PROJECT
+    value: switchboard
+  - name: IMAGE_NAME
+    value: switchboard
   - name: dockerfilePath
     value: $(Build.SourcesDirectory)/Dockerfile
-  - name: imageTag
-    value: $(Build.BuildId)
   - name: enableRemoteDeploy
     value: "false"
   - name: goImage
@@ -120,15 +120,27 @@ stages:
             displayName: Remove root-owned leftover artifacts
 
           - script: |
-              set -euo pipefail
-              IMAGE="$(HARBORHOST)/$(imageRepository)"
-              echo "$(HARBOR_PASSWORD)" | docker login "$(HARBORHOST)" -u "$(HARBOR_USERNAME)" --password-stdin
-              docker build -t "${IMAGE}:$(imageTag)" -t "${IMAGE}:latest" -f "$(dockerfilePath)" "$(Build.SourcesDirectory)"
-              docker push "${IMAGE}:$(imageTag)"
-              docker push "${IMAGE}:latest"
-              echo "##vso[task.setvariable variable=fullImage;isOutput=true]${IMAGE}:$(imageTag)"
+              set -euxo pipefail
+              SOURCE_BRANCH=$(Build.SourceBranch)
+              BRANCH_NAME=${SOURCE_BRANCH#refs/heads/}
+              SAFE_BRANCH=$(echo "$BRANCH_NAME" | tr '/' '-')
+              HARBOR_REPO="${HARBOR_HOST#https://}/$(HARBOR_PROJECT)/$(IMAGE_NAME)"
+
+              echo "$HARBOR_PASSWORD" | docker login "$HARBOR_HOST" \
+                -u "$HARBOR_USER" --password-stdin
+              docker build -t "${HARBOR_REPO}:${SAFE_BRANCH}-$(Build.BuildId)" \
+                -t "${HARBOR_REPO}:${SAFE_BRANCH}-latest" \
+                -f "$(dockerfilePath)" "$(Build.SourcesDirectory)"
+              docker push "${HARBOR_REPO}:${SAFE_BRANCH}-$(Build.BuildId)"
+              docker push "${HARBOR_REPO}:${SAFE_BRANCH}-latest"
+              docker logout "$HARBOR_HOST"
+              echo "##vso[task.setvariable variable=fullImage;isOutput=true]${HARBOR_REPO}:${SAFE_BRANCH}-$(Build.BuildId)"
             name: imageMeta
-            displayName: Login, build, and push to Harbor
+            displayName: Push to Harbor Registry
+            env:
+              HARBOR_HOST: $(HARBOR_HOST)
+              HARBOR_USER: $(HARBOR_USER)
+              HARBOR_PASSWORD: $(HARBOR_PASSWORD)
 
   # - stage: Deploy
   #   displayName: Deploy to server
@@ -158,11 +170,14 @@ stages:
   #                   sshEndpoint: switchboard-ssh
   #                   runOptions: inline
   #                   inline: |
-  #                     set -euo pipefail
-  #                     cd "$(DEPLOY_PATH)"
-  #                     echo "$(HARBOR_PASSWORD)" | docker login "$(HARBORHOST)" -u "$(HARBOR_USERNAME)" --password-stdin
-  #                     export SWITCHBOARD_IMAGE="$(HARBORHOST)/$(imageRepository):$(Build.BuildId)"
+  #                     set -euxo pipefail
+  #                     cd "$DEPLOY_PATH"
+  #                     echo "$HARBOR_PASSWORD" | docker login "$HARBOR_HOST" \
+  #                       -u "$HARBOR_USER" --password-stdin
+  #                     export SWITCHBOARD_IMAGE="${HARBOR_HOST#https://}/$(HARBOR_PROJECT)/$(IMAGE_NAME):main-$(Build.BuildId)"
   #                     docker compose -f docker-compose.prod.yml pull app
   #                     docker compose -f docker-compose.prod.yml up -d --remove-orphans
   #                     docker compose -f docker-compose.prod.yml ps
   #                     docker image prune -f
+  #                     docker logout "$HARBOR_HOST"
+  #                   # Map HARBOR_* via env on the SSH task if your agent supports it
