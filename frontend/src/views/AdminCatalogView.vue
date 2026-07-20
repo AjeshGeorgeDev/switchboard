@@ -30,12 +30,15 @@ const sectionError = ref('')
 const editing = ref<any>(null)
 const editingSection = ref<CatalogSection | null>(null)
 const sectionForm = ref({ name: '', sort_order: 0 })
+const iconFileInput = ref<HTMLInputElement | null>(null)
 const form = ref({
   name: '', description: '', icon_url: '', access_type: 'url',
   target_host: '', target_port: null as number | null,
   is_active: true, is_public: false, sort_order: 0, section_id: null as string | null,
   role_ids: [] as string[],
 })
+
+const MAX_ICON_BYTES = 500 * 1024
 
 const accessTypeOptions = [
   { label: 'URL', value: 'url' },
@@ -74,6 +77,39 @@ function sectionName(sectionId: string | null) {
   return sections.value.find(s => s.id === sectionId)?.name ?? '—'
 }
 
+function clearIcon() {
+  form.value.icon_url = ''
+  if (iconFileInput.value) iconFileInput.value.value = ''
+}
+
+function onIconFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  if (!file.type.startsWith('image/')) {
+    error.value = 'Icon must be an image file (PNG, JPEG, WebP, SVG, or GIF).'
+    input.value = ''
+    return
+  }
+  if (file.size > MAX_ICON_BYTES) {
+    error.value = 'Icon image must be 500 KB or smaller.'
+    input.value = ''
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = () => {
+    form.value.icon_url = typeof reader.result === 'string' ? reader.result : ''
+    error.value = ''
+  }
+  reader.onerror = () => {
+    error.value = 'Could not read the selected image.'
+    input.value = ''
+  }
+  reader.readAsDataURL(file)
+}
+
 function openCreate() {
   editing.value = null
   error.value = ''
@@ -83,6 +119,7 @@ function openCreate() {
     section_id: null,
     role_ids: defaultRoleIds(),
   }
+  if (iconFileInput.value) iconFileInput.value.value = ''
   showDialog.value = true
 }
 
@@ -109,6 +146,7 @@ async function openEdit(app: any) {
     section_id: appSectionId(app),
     role_ids: roleIds,
   }
+  if (iconFileInput.value) iconFileInput.value.value = ''
   showDialog.value = true
 }
 
@@ -132,7 +170,7 @@ function buildPayload() {
   return {
     name: form.value.name.trim(),
     description: form.value.description,
-    icon_url: form.value.icon_url,
+    icon_url: form.value.icon_url.trim(),
     access_type: form.value.access_type,
     target_host: form.value.target_host.trim(),
     target_port: form.value.target_port,
@@ -341,6 +379,8 @@ async function removeSection(section: CatalogSection) {
       :header="editing ? 'Edit Application' : 'New Application'"
       modal
       class="app-dialog"
+      :style="{ width: 'min(720px, 96vw)' }"
+      :content-style="{ overflow: 'auto', maxHeight: 'min(78vh, 900px)' }"
     >
       <Message v-if="error" severity="error" class="mb-3">{{ error }}</Message>
 
@@ -351,6 +391,52 @@ async function removeSection(section: CatalogSection) {
       <div class="field">
         <label for="app-desc">Description</label>
         <InputText id="app-desc" v-model="form.description" class="w-full" />
+      </div>
+      <div class="field">
+        <label for="app-icon">Icon</label>
+        <div class="icon-row">
+          <div class="icon-preview" aria-hidden="true">
+            <img v-if="form.icon_url" :src="form.icon_url" alt="" />
+            <span v-else>{{ (form.name || '?').charAt(0).toUpperCase() }}</span>
+          </div>
+          <div class="icon-controls">
+            <InputText
+              id="app-icon"
+              v-model="form.icon_url"
+              class="w-full"
+              placeholder="https://… or upload an image"
+            />
+            <div class="icon-actions">
+              <input
+                ref="iconFileInput"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+                class="sr-only"
+                @change="onIconFileSelected"
+              />
+              <Button
+                type="button"
+                label="Upload image"
+                icon="pi pi-upload"
+                severity="secondary"
+                outlined
+                size="small"
+                @click="iconFileInput?.click()"
+              />
+              <Button
+                v-if="form.icon_url"
+                type="button"
+                label="Clear"
+                icon="pi pi-times"
+                severity="secondary"
+                text
+                size="small"
+                @click="clearIcon"
+              />
+            </div>
+            <small class="hint">Paste an image URL/link, or upload a small icon (max 500 KB).</small>
+          </div>
+        </div>
       </div>
       <div class="field">
         <label for="app-type">Access Type</label>
@@ -488,6 +574,53 @@ async function removeSection(section: CatalogSection) {
   color: var(--sb-muted);
   font-size: 0.8rem;
 }
+.icon-row {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+.icon-preview {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--sb-border, var(--p-content-border-color));
+  background: var(--sb-surface, var(--p-surface-100));
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--sb-muted, var(--p-text-muted-color));
+}
+.icon-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.icon-controls {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.icon-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .sections-intro {
   margin-bottom: 1rem;
   color: var(--sb-muted);
@@ -506,11 +639,11 @@ async function removeSection(section: CatalogSection) {
 
 <style>
 .app-dialog {
-  width: min(520px, 92vw);
+  width: min(720px, 96vw);
+  max-width: 96vw;
 }
 
 .sections-dialog {
-  width: min(560px, 92vw);
+  width: min(640px, 96vw);
 }
-
 </style>

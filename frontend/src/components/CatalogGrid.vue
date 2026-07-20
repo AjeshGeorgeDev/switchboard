@@ -36,7 +36,7 @@ const isPublic = computed(() => props.variant === 'public' || props.variant === 
 
 const gridClass = computed(() =>
   isPublic.value
-    ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+    ? 'grid-cols-[repeat(auto-fill,minmax(220px,1fr))]'
     : 'grid-cols-[repeat(auto-fill,minmax(260px,1fr))]',
 )
 </script>

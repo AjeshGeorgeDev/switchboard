@@ -89,7 +89,7 @@ watch(
     <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,color-mix(in_srgb,var(--p-primary-color)_16%,transparent),transparent)]" />
 
     <header class="relative z-10 border-b border-surface bg-surface-0/70 backdrop-blur-xl">
-      <div class="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
+      <div class="flex h-16 w-full items-center justify-between gap-4 px-5 sm:px-8 lg:px-10">
         <button
           type="button"
           class="flex items-center gap-3 border-0 bg-transparent p-0 text-color"
@@ -117,10 +117,9 @@ watch(
       </div>
     </header>
 
-    <main class="relative z-10 mx-auto w-full max-w-6xl flex-1 px-5 py-5 sm:px-8 sm:py-6">
-      <div class="mb-5 max-w-2xl">
+    <main class="relative z-10 w-full flex-1 px-5 py-5 sm:px-8 sm:py-6 lg:px-10">
+      <div class="mb-5">
         <h1 class="text-3xl font-bold tracking-tight text-color sm:text-4xl">Applications</h1>
-        
       </div>
 
       <div

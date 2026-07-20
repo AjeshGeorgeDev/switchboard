@@ -64,11 +64,11 @@ function targetLabel(app: {
 </script>
 
 <template>
-  <!-- Public / homepage tile -->
+  <!-- Public / homepage card -->
   <component
     v-if="publicTile || featured"
     :is="preview ? 'div' : 'a'"
-    class="group relative flex aspect-square flex-col items-center justify-center overflow-hidden rounded-2xl border border-surface/80 bg-surface-0/90 p-5 text-center text-inherit no-underline shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/20 hover:bg-surface-0 hover:shadow-lg hover:shadow-primary/10"
+    class="group relative flex min-h-[140px] flex-col overflow-hidden rounded-2xl border border-surface/80 bg-surface-0/90 p-4 text-left text-inherit no-underline shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:bg-surface-0 hover:shadow-md hover:shadow-primary/10"
     :class="preview ? 'cursor-default' : 'cursor-pointer'"
     :href="preview ? undefined : launchUrl(app)"
     :target="preview ? undefined : '_blank'"
@@ -76,35 +76,37 @@ function targetLabel(app: {
   >
     <div
       class="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-      :style="{ background: `radial-gradient(circle at 50% 30%, hsl(${hue(app.name)} 70% 60% / 0.12), transparent 70%)` }"
+      :style="{ background: `radial-gradient(circle at 12% 0%, hsl(${hue(app.name)} 70% 60% / 0.14), transparent 55%)` }"
     />
 
-    <div
-      class="relative grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl text-xl font-bold text-white shadow-md"
-      :style="!textField(app.icon_url) ? { background: `linear-gradient(145deg, hsl(${hue(app.name)}, 65%, 55%), hsl(${hue(app.name)}, 75%, 42%))` } : undefined"
-    >
-      <img v-if="textField(app.icon_url)" :src="textField(app.icon_url)" :alt="app.name" class="h-full w-full object-cover" />
-      <span v-else>{{ app.name.charAt(0).toUpperCase() }}</span>
+    <div class="relative flex items-start justify-between gap-3">
+      <div
+        class="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl text-lg font-bold text-white shadow-sm"
+        :style="!textField(app.icon_url) ? { background: `linear-gradient(145deg, hsl(${hue(app.name)}, 65%, 55%), hsl(${hue(app.name)}, 75%, 42%))` } : undefined"
+      >
+        <img v-if="textField(app.icon_url)" :src="textField(app.icon_url)" :alt="app.name" class="h-full w-full object-cover" />
+        <span v-else>{{ app.name.charAt(0).toUpperCase() }}</span>
+      </div>
+      <span
+        v-if="!preview"
+        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-100 text-muted-color transition-colors group-hover:bg-primary group-hover:text-primary-contrast"
+      >
+        <i class="pi pi-arrow-up-right text-xs" />
+      </span>
     </div>
 
-    <h3 class="relative mt-4 line-clamp-2 text-sm font-semibold leading-snug text-color sm:text-base">
-      {{ app.name }}
-    </h3>
+    <div class="relative mt-3 flex flex-1 flex-col gap-1">
+      <h3 class="line-clamp-2 text-base font-semibold leading-snug text-color">
+        {{ app.name }}
+      </h3>
+    </div>
 
     <p
       v-if="textField(app.description)"
-      class="relative mt-1 line-clamp-2 hidden text-xs leading-relaxed text-muted-color sm:block"
+      class="pointer-events-none absolute inset-x-0 bottom-0 line-clamp-3 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent px-4 pb-4 pt-8 text-sm leading-relaxed text-muted-color opacity-0 transition-opacity duration-200 group-hover:opacity-100"
     >
       {{ textField(app.description) }}
     </p>
-
-    <span
-      v-if="!preview"
-      class="relative mt-3 flex items-center gap-1 text-xs font-medium text-primary opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-    >
-      Open
-      <i class="pi pi-arrow-up-right text-[0.65rem]" />
-    </span>
   </component>
 
   <!-- Default launcher card -->
