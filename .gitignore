@@ -3,7 +3,10 @@ node_modules/
 backups/
 package-lock.json
 frontend/dist/
-backend/internal/static/dist/
+
+# Embedded UI build output — keep placeholder so //go:embed dist/* compiles on clean checkouts
+backend/internal/static/dist/*
+!backend/internal/static/dist/placeholder
 
 # Environment
 .env
@@ -22,5 +25,5 @@ backend/tmp/
 *.swp
 .DS_Store
 
-# Build
-dist/
+# Build (repo-root only; do not ignore backend/internal/static/dist/placeholder)
+/dist/

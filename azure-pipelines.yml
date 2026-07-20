@@ -58,6 +58,7 @@ stages:
         steps:
           - script: |
               set -euo pipefail
+              # dist/placeholder is in git so //go:embed dist/* compiles without a frontend build
               docker run --rm \
                 -v "$(Build.SourcesDirectory)/backend:/app" \
                 -w /app \
