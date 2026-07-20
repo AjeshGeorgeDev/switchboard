@@ -39,7 +39,7 @@ pool:
 variables:
   - group: HARBOR
   - name: HARBOR_PROJECT
-    value: switchboard
+    value: ${HARBOR_PROJECT}
   - name: IMAGE_NAME
     value: switchboard
   - name: dockerfilePath
