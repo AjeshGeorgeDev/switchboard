@@ -5,6 +5,8 @@
 # Agent prerequisites (Default pool):
 #   - Docker Engine + permission for the agent user to run docker
 #   Go/Node are NOT required on the agent — tests run inside containers.
+#   Container jobs copy/read-only mount sources so they do not leave root-owned
+#   node_modules/.pnpm on the agent (which breaks the next checkout clean).
 #
 # Setup:
 # 1. Pipelines → Library → Variable group "HARBOR" with:
@@ -56,11 +58,23 @@ stages:
       - job: BackendTest
         displayName: Backend unit tests (Docker)
         steps:
+          # clean:false — prior runs may have left root-owned files the agent cannot delete
+          - checkout: self
+            clean: false
+
           - script: |
               set -euo pipefail
-              # dist/placeholder is in git so //go:embed dist/* compiles without a frontend build
+              docker run --rm -v "$(Build.SourcesDirectory):/work" alpine:3.20 \
+                sh -c 'rm -rf /work/frontend/node_modules /work/frontend/.pnpm /work/frontend/.pnpm-store /work/.pnpm-store'
+            displayName: Remove root-owned leftover artifacts
+
+          - script: |
+              set -euo pipefail
+              # Read-only mount + caches in /tmp so the agent workspace stays clean
               docker run --rm \
-                -v "$(Build.SourcesDirectory)/backend:/app" \
+                -e GOCACHE=/tmp/go-cache \
+                -e GOMODCACHE=/tmp/go-mod \
+                -v "$(Build.SourcesDirectory)/backend:/app:ro" \
                 -w /app \
                 "$(goImage)" \
                 go test ./...
@@ -69,13 +83,23 @@ stages:
       - job: FrontendBuild
         displayName: Frontend build (Docker)
         steps:
+          - checkout: self
+            clean: false
+
           - script: |
               set -euo pipefail
+              docker run --rm -v "$(Build.SourcesDirectory):/work" alpine:3.20 \
+                sh -c 'rm -rf /work/frontend/node_modules /work/frontend/.pnpm /work/frontend/.pnpm-store /work/.pnpm-store'
+            displayName: Remove root-owned leftover artifacts
+
+          - script: |
+              set -euo pipefail
+              # Copy sources into the container — never write node_modules onto the agent
               docker run --rm \
-                -v "$(Build.SourcesDirectory)/frontend:/app" \
-                -w /app \
+                -v "$(Build.SourcesDirectory)/frontend:/src:ro" \
+                -w /tmp/frontend \
                 "$(nodeImage)" \
-                sh -c 'corepack enable && corepack prepare pnpm@10 --activate && pnpm install --frozen-lockfile && pnpm run build'
+                sh -c 'cp -a /src/. /tmp/frontend/ && corepack enable && corepack prepare pnpm@10 --activate && pnpm install --frozen-lockfile && pnpm exec vite build --outDir /tmp/dist --emptyOutDir'
             displayName: pnpm build in container
 
   - stage: Build
@@ -86,6 +110,15 @@ stages:
       - job: DockerBuild
         displayName: Docker build and push to Harbor
         steps:
+          - checkout: self
+            clean: false
+
+          - script: |
+              set -euo pipefail
+              docker run --rm -v "$(Build.SourcesDirectory):/work" alpine:3.20 \
+                sh -c 'rm -rf /work/frontend/node_modules /work/frontend/.pnpm /work/frontend/.pnpm-store /work/.pnpm-store'
+            displayName: Remove root-owned leftover artifacts
+
           - script: |
               set -euo pipefail
               IMAGE="$(HARBORHOST)/$(imageRepository)"
