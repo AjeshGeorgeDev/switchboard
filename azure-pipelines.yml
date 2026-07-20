@@ -38,8 +38,6 @@ pool:
 
 variables:
   - group: HARBOR
-  - name: HARBOR_PROJECT
-    value: ${HARBOR_PROJECT}
   - name: IMAGE_NAME
     value: switchboard
   - name: dockerfilePath
@@ -141,6 +139,7 @@ stages:
               HARBOR_HOST: $(HARBOR_HOST)
               HARBOR_USER: $(HARBOR_USER)
               HARBOR_PASSWORD: $(HARBOR_PASSWORD)
+              HARBOR_PROJECT: $(HARBOR_PROJECT)
 
   # - stage: Deploy
   #   displayName: Deploy to server
