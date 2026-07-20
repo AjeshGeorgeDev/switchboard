@@ -310,7 +310,7 @@ Terminate TLS and proxy to `127.0.0.1:8080`. Preserve the original host and sche
 | **Build** | main (non-PR) | Build & push to Harbor (`Build.BuildId` + `latest`) |
 | **Deploy** | Opt-in | SSH to host → pull from Harbor → `compose up` |
 
-**Default pool agents need:** Docker (agent user can run `docker`), Go 1.25+, Node.js 20+ with corepack.
+**Default pool agents need only Docker** (agent user can run `docker`). Go and Node are not required — Test runs those tools inside `golang:1.25-alpine` / `node:20-alpine` containers.
 
 **Wire it up:**
 

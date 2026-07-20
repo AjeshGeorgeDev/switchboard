@@ -4,8 +4,7 @@
 #
 # Agent prerequisites (Default pool):
 #   - Docker Engine + permission for the agent user to run docker
-#   - Go 1.25+
-#   - Node.js 20+ with corepack (for pnpm)
+#   Go/Node are NOT required on the agent — tests run inside containers.
 #
 # Setup:
 # 1. Pipelines → Library → Variable group "HARBOR" with:
@@ -45,33 +44,38 @@ variables:
     value: $(Build.BuildId)
   - name: enableRemoteDeploy
     value: "false"
+  - name: goImage
+    value: golang:1.25-alpine
+  - name: nodeImage
+    value: node:20-alpine
 
 stages:
   - stage: Test
     displayName: Test
     jobs:
       - job: BackendTest
-        displayName: Backend unit tests
+        displayName: Backend unit tests (Docker)
         steps:
           - script: |
               set -euo pipefail
-              go version
-              go test ./...
-            workingDirectory: $(Build.SourcesDirectory)/backend
-            displayName: go test
+              docker run --rm \
+                -v "$(Build.SourcesDirectory)/backend:/app" \
+                -w /app \
+                "$(goImage)" \
+                go test ./...
+            displayName: go test in container
 
       - job: FrontendBuild
-        displayName: Frontend typecheck / build
+        displayName: Frontend build (Docker)
         steps:
           - script: |
               set -euo pipefail
-              node --version
-              corepack enable
-              corepack prepare pnpm@10 --activate
-              pnpm install --frozen-lockfile
-              pnpm run build
-            workingDirectory: $(Build.SourcesDirectory)/frontend
-            displayName: pnpm install and build
+              docker run --rm \
+                -v "$(Build.SourcesDirectory)/frontend:/app" \
+                -w /app \
+                "$(nodeImage)" \
+                sh -c 'corepack enable && corepack prepare pnpm@10 --activate && pnpm install --frozen-lockfile && pnpm run build'
+            displayName: pnpm build in container
 
   - stage: Build
     displayName: Build and push to Harbor
