@@ -44,7 +44,7 @@ variables:
   - name: imageTag
     value: $(Build.BuildId)
   - name: enableRemoteDeploy
-    value: false
+    value: "false"
 
 stages:
   - stage: Test
@@ -92,39 +92,39 @@ stages:
             name: imageMeta
             displayName: Login, build, and push to Harbor
 
-  - stage: Deploy
-    displayName: Deploy to server
-    dependsOn: Build
-    condition: and(succeeded(), eq(variables['enableRemoteDeploy'], 'true'))
-    variables:
-      - group: HARBOR
-      - group: switchboard-deploy
-      - name: builtImage
-        value: $[ stageDependencies.Build.DockerBuild.outputs['imageMeta.fullImage'] ]
-    jobs:
-      - deployment: DeployProd
-        displayName: Deploy via SSH + Compose
-        environment: production
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: self
-                  displayName: Checkout compose files
+  # - stage: Deploy
+  #   displayName: Deploy to server
+  #   dependsOn: Build
+  #   condition: and(succeeded(), eq(variables['enableRemoteDeploy'], 'true'))
+  #   variables:
+  #     - group: HARBOR
+  #     - group: switchboard-deploy
+  #     - name: builtImage
+  #       value: $[ stageDependencies.Build.DockerBuild.outputs['imageMeta.fullImage'] ]
+  #   jobs:
+  #     - deployment: DeployProd
+  #       displayName: Deploy via SSH + Compose
+  #       environment: production
+  #       strategy:
+  #         runOnce:
+  #           deploy:
+  #             steps:
+  #               - checkout: self
+  #                 displayName: Checkout compose files
 
-                # switchboard-deploy: DEPLOY_PATH — server path with compose + .env
-                # Uses HARBOR group to docker login on the remote host, then pull.
-                - task: SSH@0
-                  displayName: Pull from Harbor and recreate stack
-                  inputs:
-                    sshEndpoint: switchboard-ssh
-                    runOptions: inline
-                    inline: |
-                      set -euo pipefail
-                      cd "$(DEPLOY_PATH)"
-                      echo "$(HARBOR_PASSWORD)" | docker login "$(HARBORHOST)" -u "$(HARBOR_USERNAME)" --password-stdin
-                      export SWITCHBOARD_IMAGE="$(HARBORHOST)/$(imageRepository):$(Build.BuildId)"
-                      docker compose -f docker-compose.prod.yml pull app
-                      docker compose -f docker-compose.prod.yml up -d --remove-orphans
-                      docker compose -f docker-compose.prod.yml ps
-                      docker image prune -f
+  #               # switchboard-deploy: DEPLOY_PATH — server path with compose + .env
+  #               # Uses HARBOR group to docker login on the remote host, then pull.
+  #               - task: SSH@0
+  #                 displayName: Pull from Harbor and recreate stack
+  #                 inputs:
+  #                   sshEndpoint: switchboard-ssh
+  #                   runOptions: inline
+  #                   inline: |
+  #                     set -euo pipefail
+  #                     cd "$(DEPLOY_PATH)"
+  #                     echo "$(HARBOR_PASSWORD)" | docker login "$(HARBORHOST)" -u "$(HARBOR_USERNAME)" --password-stdin
+  #                     export SWITCHBOARD_IMAGE="$(HARBORHOST)/$(imageRepository):$(Build.BuildId)"
+  #                     docker compose -f docker-compose.prod.yml pull app
+  #                     docker compose -f docker-compose.prod.yml up -d --remove-orphans
+  #                     docker compose -f docker-compose.prod.yml ps
+  #                     docker image prune -f
