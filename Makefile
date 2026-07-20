@@ -1,8 +1,9 @@
-.PHONY: dev-up dev-down migrate-up migrate-down sqlc-generate build run backend-dev test frontend-install frontend-dev frontend-build db-backup postgres-upgrade-16-to-17 screenshot-data screenshots
+.PHONY: dev-up dev-down prod-up prod-down prod-logs prod-ps migrate-up migrate-down sqlc-generate build run backend-dev test frontend-install frontend-dev frontend-build db-backup postgres-upgrade-16-to-17 screenshot-data screenshots docker-build
 
 DATABASE_URL ?= postgres://switchboard:switchboard@localhost:5432/switchboard?sslmode=disable
 REDIS_URL ?= redis://localhost:6379/0
 PORT ?= 8080
+COMPOSE_PROD := docker compose -f docker-compose.prod.yml
 
 -include .env
 export
@@ -13,6 +14,22 @@ dev-up:
 
 dev-down:
 	docker compose down
+
+# Full production stack (Postgres + Redis + app). Requires .env with POSTGRES_PASSWORD, JWT_SECRET, APP_BASE_URL.
+prod-up:
+	$(COMPOSE_PROD) up -d --build
+
+prod-down:
+	$(COMPOSE_PROD) down
+
+prod-logs:
+	$(COMPOSE_PROD) logs -f app
+
+prod-ps:
+	$(COMPOSE_PROD) ps
+
+docker-build:
+	docker build -t switchboard:latest .
 
 migrate-up:
 	cd backend && "$(GOPATH_BIN)/migrate" -path migrations -database "$(DATABASE_URL)" up

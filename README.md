@@ -232,12 +232,100 @@ Successful requests return `202` with `{"status":"accepted"}`; processing is asy
 - **Teams:** create an Incoming Webhook in your Teams channel, then add it under **Admin → Configuration**
 - **Email:** set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM` on the server
 
-## Docker
+## Docker (single container)
+
+Build the multi-stage image (embeds the Vue UI into the Go binary) and run it against existing Postgres/Redis:
 
 ```bash
 docker build -t switchboard .
 docker run -p 8080:8080 --env-file .env switchboard
 ```
+
+On start the container runs DB migrations (`MIGRATE_ON_START=true` by default), then serves on `:8080`.
+
+## Production / server deployment
+
+`docker-compose.yml` is **local deps only** (Postgres + Redis). For a server, use **`docker-compose.prod.yml`**, which runs Postgres, Redis, and the Switchboard app on a private network.
+
+### 1. Prepare the host
+
+- Docker Engine + Docker Compose v2
+- A DNS name (or IP) that Harbor/Trivy and users can reach
+- TLS termination in front of the app (nginx, Caddy, Traefik, or a load balancer) — Switchboard listens on HTTP `:8080`
+
+### 2. Configure environment
+
+```bash
+cp .env.example .env
+# Required for prod compose:
+#   POSTGRES_PASSWORD   strong DB password
+#   JWT_SECRET          e.g. openssl rand -base64 32
+#   APP_BASE_URL        https://switchboard.example.com  (no trailing slash)
+```
+
+Optional: `HOST_PORT` (default `8080`), Harbor/Trivy/SMTP vars, webhook secrets.
+
+### 3. Start the stack
+
+From the repo root on the server:
+
+```bash
+make prod-up          # build + start (or: docker compose -f docker-compose.prod.yml up -d --build)
+make prod-ps          # status
+make prod-logs        # follow app logs
+```
+
+Or pull from your private Harbor without building on the host:
+
+```bash
+docker login harbor.example.com
+export SWITCHBOARD_IMAGE=harbor.example.com/switchboard/switchboard:12345
+docker compose -f docker-compose.prod.yml pull app
+docker compose -f docker-compose.prod.yml up -d
+```
+
+First visit opens `/setup` to create the superadmin account. Point Harbor/Trivy webhooks at `{APP_BASE_URL}/webhooks/...` as described above.
+
+### 4. Upgrades
+
+```bash
+# After pulling a new image tag into SWITCHBOARD_IMAGE / .env:
+docker compose -f docker-compose.prod.yml pull app
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Migrations run automatically on container start. To skip: `MIGRATE_ON_START=false`.
+
+### 5. Reverse proxy (example)
+
+Terminate TLS and proxy to `127.0.0.1:8080`. Preserve the original host and scheme so OIDC callbacks and webhook URLs match `APP_BASE_URL`.
+
+## Azure DevOps CI/CD (on-prem → private Harbor)
+
+[`azure-pipelines.yml`](azure-pipelines.yml) targets **Azure DevOps Server** on the self-hosted **`Default`** agent pool and pushes images to **Harbor**.
+
+| Stage | When | What |
+|-------|------|------|
+| **Test** | PRs + main | `go test`, frontend `pnpm build` |
+| **Build** | main (non-PR) | Build & push to Harbor (`Build.BuildId` + `latest`) |
+| **Deploy** | Opt-in | SSH to host → pull from Harbor → `compose up` |
+
+**Default pool agents need:** Docker (agent user can run `docker`), Go 1.25+, Node.js 20+ with corepack.
+
+**Wire it up:**
+
+1. In Harbor: create a project (e.g. `switchboard`) and a **robot account** with push (and pull) on that project.
+2. In Azure DevOps Server → **Pipelines → Library → Variable group `HARBOR`** (authorize it for this pipeline):
+
+   | Variable | Example | Notes |
+   |----------|---------|--------|
+   | `HARBORHOST` | `harbor.example.com` | Hostname only (no `https://`) |
+   | `HARBOR_USERNAME` | `robot$switchboard+ci` | Robot or user with push |
+   | `HARBOR_PASSWORD` | *(secret)* | Lock this variable |
+
+3. Set `imageRepository` in the YAML to Harbor’s `project/repo` path (default `switchboard/switchboard`).
+4. Create the pipeline from this YAML (`pool: Default`).
+5. Optional remote deploy: set `enableRemoteDeploy: true`, add SSH connection `switchboard-ssh`, Environment `production`, and variable group `switchboard-deploy` with `DEPLOY_PATH`. Deploy reuses the `HARBOR` group to log in on the target host before pull.
 
 ## Architecture
 

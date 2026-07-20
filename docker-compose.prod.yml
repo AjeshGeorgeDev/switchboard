@@ -1,0 +1,96 @@
+# Production stack: Postgres + Redis + Switchboard app.
+# Usage:
+#   cp .env.example .env   # set production secrets
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Or pull a pre-built image from private Harbor:
+#   docker login harbor.example.com
+#   SWITCHBOARD_IMAGE=harbor.example.com/switchboard/switchboard:1.2.3 \
+#     docker compose -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-switchboard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-switchboard}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-switchboard}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - switchboard
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - switchboard
+
+  app:
+    image: ${SWITCHBOARD_IMAGE:-switchboard:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      DATABASE_URL: postgres://${POSTGRES_USER:-switchboard}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-switchboard}?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL is required}
+      JWT_SESSION_REFRESH_TTL: ${JWT_SESSION_REFRESH_TTL:-24h}
+      JWT_REMEMBER_REFRESH_TTL: ${JWT_REMEMBER_REFRESH_TTL:-720h}
+      MIGRATE_ON_START: ${MIGRATE_ON_START:-true}
+      HARBOR_URL: ${HARBOR_URL:-}
+      HARBOR_TOKEN: ${HARBOR_TOKEN:-}
+      TRIVY_URL: ${TRIVY_URL:-}
+      TRIVY_TOKEN: ${TRIVY_TOKEN:-}
+      HARBOR_WEBHOOK_SECRET: ${HARBOR_WEBHOOK_SECRET:-}
+      TRIVY_WEBHOOK_SECRET: ${TRIVY_WEBHOOK_SECRET:-}
+      CVE_PULL_CRON: ${CVE_PULL_CRON:-0 6 * * 0}
+      CVE_PULL_ENABLED: ${CVE_PULL_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      WORKER_MODE: ${WORKER_MODE:-combined}
+    ports:
+      - "${HOST_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    networks:
+      - switchboard
+
+networks:
+  switchboard:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
