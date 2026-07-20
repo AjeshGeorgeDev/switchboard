@@ -582,6 +582,7 @@ async function removeSection(section: CatalogSection) {
 .icon-preview {
   width: 3.25rem;
   height: 3.25rem;
+  aspect-ratio: 1 / 1;
   border-radius: 0.85rem;
   border: 1px solid var(--sb-border, var(--p-content-border-color));
   background: var(--sb-surface, var(--p-surface-100));
@@ -595,7 +596,8 @@ async function removeSection(section: CatalogSection) {
 .icon-preview img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  padding: 0.2rem;
 }
 .icon-controls {
   flex: 1;

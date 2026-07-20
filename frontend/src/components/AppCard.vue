@@ -81,10 +81,15 @@ function targetLabel(app: {
 
     <div class="relative flex items-start justify-between gap-3">
       <div
-        class="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl text-lg font-bold text-white shadow-sm"
+        class="grid aspect-square h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-100 text-lg font-bold text-white shadow-sm"
         :style="!textField(app.icon_url) ? { background: `linear-gradient(145deg, hsl(${hue(app.name)}, 65%, 55%), hsl(${hue(app.name)}, 75%, 42%))` } : undefined"
       >
-        <img v-if="textField(app.icon_url)" :src="textField(app.icon_url)" :alt="app.name" class="h-full w-full object-cover" />
+        <img
+          v-if="textField(app.icon_url)"
+          :src="textField(app.icon_url)"
+          :alt="app.name"
+          class="h-full w-full object-contain p-1"
+        />
         <span v-else>{{ app.name.charAt(0).toUpperCase() }}</span>
       </div>
       <span
@@ -121,10 +126,15 @@ function targetLabel(app: {
   >
     <div class="flex items-start justify-between gap-3">
       <div
-        class="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl text-base font-extrabold text-white shadow-sm"
+        class="grid aspect-square h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-100 text-base font-extrabold text-white shadow-sm"
         :style="!textField(app.icon_url) ? { background: `linear-gradient(145deg, hsl(${hue(app.name)}, 72%, 56%), hsl(${hue(app.name)}, 82%, 38%))` } : undefined"
       >
-        <img v-if="textField(app.icon_url)" :src="textField(app.icon_url)" :alt="app.name" class="h-full w-full object-cover" />
+        <img
+          v-if="textField(app.icon_url)"
+          :src="textField(app.icon_url)"
+          :alt="app.name"
+          class="h-full w-full object-contain p-1"
+        />
         <span v-else>{{ app.name.charAt(0).toUpperCase() }}</span>
       </div>
       <span
