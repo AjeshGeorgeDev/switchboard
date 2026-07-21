@@ -189,7 +189,7 @@ Register these endpoints in Harbor/Trivy (URLs are also shown under **Admin → 
 3. Open your project → **Webhooks** → **+ New Webhook**:
    - **Endpoint URL:** `{APP_BASE_URL}/webhooks/harbor`
    - **Events:** `PUSH_ARTIFACT`, `SCANNING_COMPLETED` (and optionally `SCANNING_FAILED`)
-4. Set `HARBOR_URL` and `HARBOR_TOKEN` (`username:secret` for a robot account, or a bearer token) so Switchboard can fetch per-CVE details from Harbor using the artifact digest after `SCANNING_COMPLETED`.
+4. Set `HARBOR_URL`, `HARBOR_USER` (robot name), and `HARBOR_TOKEN` (secret only). Harbor uses HTTP Basic auth. In Docker Compose, escape `$` in robot names as `$$` (e.g. `HARBOR_USER=robot$$project+switchboard`).
 5. Test the webhook from Harbor; expect `202` with `{"status":"accepted"}`.
 6. Deployment summaries appear under **Security → Reports**; CVE rows under **Security → CVEs** when API credentials are set.
 7. For production auth, set `HARBOR_WEBHOOK_SECRET` and send `X-Webhook-Signature` (HMAC-SHA256 hex of raw body). Harbor does not send this header natively — use a CI relay or leave the secret empty in dev.

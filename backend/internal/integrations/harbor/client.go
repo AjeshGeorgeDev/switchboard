@@ -31,7 +31,21 @@ func NewClient(cfg config.Config) *Client {
 }
 
 func (c *Client) Configured() bool {
-	return strings.TrimSpace(c.cfg.HarborURL) != "" && strings.TrimSpace(c.cfg.HarborToken) != ""
+	return strings.TrimSpace(c.cfg.HarborURL) != "" && harborCredentialsConfigured(c.cfg)
+}
+
+func harborCredentialsConfigured(cfg config.Config) bool {
+	token := strings.TrimSpace(cfg.HarborToken)
+	user := strings.TrimSpace(cfg.HarborUser)
+	if token == "" {
+		return false
+	}
+	// Preferred: HARBOR_USER + HARBOR_TOKEN (secret only)
+	if user != "" {
+		return true
+	}
+	// Legacy: HARBOR_TOKEN=username:secret
+	return strings.Contains(token, ":")
 }
 
 // Finding is a normalized vulnerability from Harbor's artifact additions API.
@@ -88,7 +102,9 @@ func (c *Client) FetchArtifactVulnerabilities(ctx context.Context, project, repo
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("X-Accept-Vulnerabilities", vulnReportMIME)
-	setHarborAuth(req, c.cfg.HarborToken)
+	if err := setHarborAuth(req, c.cfg); err != nil {
+		return nil, err
+	}
 
 	res, err := c.client.Do(req)
 	if err != nil {
@@ -101,6 +117,9 @@ func (c *Client) FetchArtifactVulnerabilities(ctx context.Context, project, repo
 	}
 	if res.StatusCode == http.StatusNotFound {
 		return nil, nil
+	}
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
+		return nil, fmt.Errorf("%s — check HARBOR_USER/HARBOR_TOKEN (robot Basic auth). In Docker Compose escape $ as $$ in robot names (robot$$project+name)", res.Status)
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return nil, fmt.Errorf("harbor vulnerabilities API %s: %s", res.Status, truncate(body, 200))
@@ -119,16 +138,25 @@ func encodeHarborRepository(repository string) string {
 	return strings.Join(parts, "%2F")
 }
 
-func setHarborAuth(req *http.Request, token string) {
-	token = strings.TrimSpace(token)
+func setHarborAuth(req *http.Request, cfg config.Config) error {
+	user := strings.TrimSpace(cfg.HarborUser)
+	token := strings.TrimSpace(cfg.HarborToken)
 	if token == "" {
-		return
+		return fmt.Errorf("HARBOR_TOKEN is empty")
 	}
-	if strings.Contains(token, ":") {
-		req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(token)))
-		return
+
+	var basic string
+	switch {
+	case user != "":
+		// Preferred: separate user + secret (avoids Docker Compose eating $ in robot$...)
+		basic = user + ":" + token
+	case strings.Contains(token, ":"):
+		basic = token
+	default:
+		return fmt.Errorf("set HARBOR_USER to the robot name (e.g. robot$$project+name) and HARBOR_TOKEN to the secret only")
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(basic)))
+	return nil
 }
 
 func parseVulnerabilityAddition(body []byte) ([]Finding, error) {

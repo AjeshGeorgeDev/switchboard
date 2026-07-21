@@ -130,8 +130,8 @@ func (p *Processor) handleHarborWebhook(ctx context.Context, t *asynq.Task) (err
 // enrichment was skipped or failed (webhook still succeeds).
 func (p *Processor) ingestHarborCVEs(ctx context.Context, report harbor.DeploymentReportInput) string {
 	if p.harbor == nil || !p.harbor.Configured() {
-		log.Printf("harbor CVE ingest skipped for %s:%s: HARBOR_URL/HARBOR_TOKEN not configured", report.ImageName, report.ImageTag)
-		return "CVE ingest skipped: set HARBOR_URL and HARBOR_TOKEN"
+		log.Printf("harbor CVE ingest skipped for %s:%s: HARBOR_URL / HARBOR_USER / HARBOR_TOKEN not configured", report.ImageName, report.ImageTag)
+		return "CVE ingest skipped: set HARBOR_URL, HARBOR_USER, and HARBOR_TOKEN"
 	}
 	if report.Digest == "" {
 		log.Printf("harbor CVE ingest skipped for %s:%s: no artifact digest in webhook", report.ImageName, report.ImageTag)

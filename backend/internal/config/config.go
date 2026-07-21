@@ -15,6 +15,7 @@ type Config struct {
 	JWTSessionRefreshTTL   time.Duration
 	JWTRememberRefreshTTL  time.Duration
 	HarborURL              string
+	HarborUser             string
 	HarborToken            string
 	TrivyURL               string
 	TrivyToken             string
@@ -48,6 +49,7 @@ func Load() Config {
 		JWTSessionRefreshTTL:   durationEnv("JWT_SESSION_REFRESH_TTL", "24h"),
 		JWTRememberRefreshTTL:  durationEnv("JWT_REMEMBER_REFRESH_TTL", rememberFallback),
 		HarborURL:              getEnv("HARBOR_URL", ""),
+		HarborUser:             getEnv("HARBOR_USER", ""),
 		HarborToken:            getEnv("HARBOR_TOKEN", ""),
 		TrivyURL:               getEnv("TRIVY_URL", ""),
 		TrivyToken:             getEnv("TRIVY_TOKEN", ""),

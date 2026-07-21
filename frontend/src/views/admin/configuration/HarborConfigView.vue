@@ -45,9 +45,10 @@ onMounted(loadSecretStatus)
         artifact digest and upserts findings into <em>Security → CVEs</em>.
       </span>
       <span v-else>
-        Set <code>HARBOR_URL</code> and <code>HARBOR_TOKEN</code> (<code>username:secret</code> for a
-        robot account, or a bearer token) on the server, then restart. Webhooks still create
-        deployment reports without these.
+        Set <code>HARBOR_URL</code>, <code>HARBOR_USER</code> (robot name), and
+        <code>HARBOR_TOKEN</code> (secret only). In Docker Compose escape
+        <code>$</code> as <code>$$</code> in robot names
+        (<code>robot$$project+name</code>). Webhooks still create deployment reports without these.
       </span>
     </div>
 
@@ -89,11 +90,11 @@ onMounted(loadSecretStatus)
         </ul>
       </li>
       <li>
-        <strong>API credentials (CVE details)</strong> — Set <code>HARBOR_URL</code> (e.g.
-        <code>https://harbor.example.com</code>) and <code>HARBOR_TOKEN</code> as
-        <code>username:secret</code> (robot account recommended) or a bearer token.
-        On <code>SCANNING_COMPLETED</code>, Switchboard uses the artifact digest to call Harbor’s
-        vulnerabilities API and upsert findings into <em>Security → CVEs</em>.
+        <strong>API credentials (CVE details)</strong> — Set <code>HARBOR_URL</code>,
+        <code>HARBOR_USER</code> (e.g. <code>robot$$project+switchboard</code> — use
+        <code>$$</code> in Docker Compose), and <code>HARBOR_TOKEN</code> as the robot
+        <em>secret only</em>. Harbor uses HTTP Basic auth. On <code>SCANNING_COMPLETED</code>,
+        Switchboard calls the vulnerabilities API with the artifact digest.
       </li>
       <li>
         <strong>Test the webhook</strong> — In Harbor, open the webhook → <em>Test</em>.

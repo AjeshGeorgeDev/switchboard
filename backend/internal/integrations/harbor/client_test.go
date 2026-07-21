@@ -99,7 +99,8 @@ func TestFetchArtifactVulnerabilities(t *testing.T) {
 
 	c := NewClient(config.Config{
 		HarborURL:   srv.URL,
-		HarborToken: "robot$lib:secret",
+		HarborUser:  "robot$lib",
+		HarborToken: "secret",
 	})
 	findings, err := c.FetchArtifactVulnerabilities(t.Context(), "library", "nginx", "sha256:abc")
 	if err != nil {
@@ -120,14 +121,24 @@ func TestFetchArtifactVulnerabilitiesNotConfigured(t *testing.T) {
 
 func TestSetHarborAuth(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "http://example", nil)
-	setHarborAuth(req, "user:pass")
+	if err := setHarborAuth(req, config.Config{HarborUser: "robot$lib", HarborToken: "secret"}); err != nil {
+		t.Fatal(err)
+	}
 	if !stringsHasPrefix(req.Header.Get("Authorization"), "Basic ") {
 		t.Fatalf("expected basic auth, got %q", req.Header.Get("Authorization"))
 	}
+
 	req2, _ := http.NewRequest(http.MethodGet, "http://example", nil)
-	setHarborAuth(req2, "token-only")
-	if req2.Header.Get("Authorization") != "Bearer token-only" {
-		t.Fatalf("expected bearer, got %q", req2.Header.Get("Authorization"))
+	if err := setHarborAuth(req2, config.Config{HarborToken: "user:pass"}); err != nil {
+		t.Fatal(err)
+	}
+	if !stringsHasPrefix(req2.Header.Get("Authorization"), "Basic ") {
+		t.Fatalf("expected basic auth from combined token, got %q", req2.Header.Get("Authorization"))
+	}
+
+	req3, _ := http.NewRequest(http.MethodGet, "http://example", nil)
+	if err := setHarborAuth(req3, config.Config{HarborToken: "token-only"}); err == nil {
+		t.Fatal("expected error for secret-only token without user")
 	}
 }
 
