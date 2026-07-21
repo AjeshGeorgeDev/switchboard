@@ -177,8 +177,8 @@ Register these endpoints in Harbor/Trivy (URLs are also shown under **Admin → 
 
 | Endpoint | Purpose |
 |----------|---------|
-| `POST {APP_BASE_URL}/webhooks/harbor` | Deployment reports (Security → Reports) |
-| `POST {APP_BASE_URL}/webhooks/trivy` | CVE scan results (Security → CVEs) |
+| `POST {APP_BASE_URL}/webhooks/harbor` | Deployment reports (Security → Reports); CVE details via Harbor API when configured |
+| `POST {APP_BASE_URL}/webhooks/trivy` | Optional direct Trivy JSON → Security → CVEs |
 
 **Local dev:** with Vite (`make frontend-dev`), use `APP_BASE_URL=http://localhost:5173` — the dev proxy forwards `/webhooks` to the backend. Harbor/Trivy on another machine must reach your host IP, not `localhost`.
 
@@ -189,13 +189,14 @@ Register these endpoints in Harbor/Trivy (URLs are also shown under **Admin → 
 3. Open your project → **Webhooks** → **+ New Webhook**:
    - **Endpoint URL:** `{APP_BASE_URL}/webhooks/harbor`
    - **Events:** `PUSH_ARTIFACT`, `SCANNING_COMPLETED` (and optionally `SCANNING_FAILED`)
-4. Test the webhook from Harbor; expect `202` with `{"status":"accepted"}`.
-5. Deployment and scan events appear under **Security → Reports**.
-6. For production auth, set `HARBOR_WEBHOOK_SECRET` and send `X-Webhook-Signature` (HMAC-SHA256 hex of raw body). Harbor does not send this header natively — use a CI relay or leave the secret empty in dev.
+4. Set `HARBOR_URL` and `HARBOR_TOKEN` (`username:secret` for a robot account, or a bearer token) so Switchboard can fetch per-CVE details from Harbor using the artifact digest after `SCANNING_COMPLETED`.
+5. Test the webhook from Harbor; expect `202` with `{"status":"accepted"}`.
+6. Deployment summaries appear under **Security → Reports**; CVE rows under **Security → CVEs** when API credentials are set.
+7. For production auth, set `HARBOR_WEBHOOK_SECRET` and send `X-Webhook-Signature` (HMAC-SHA256 hex of raw body). Harbor does not send this header natively — use a CI relay or leave the secret empty in dev.
 
 **Trivy setup**
 
-Harbor scan webhooks go to the **Harbor** endpoint. To populate **Security → CVEs** with full Trivy detail, POST standard Trivy JSON from CI:
+Most Harbor installs already scan with Trivy inside Harbor — use the Harbor webhook + API credentials above. To also POST standard Trivy JSON from CI:
 
 ```bash
 # Scan

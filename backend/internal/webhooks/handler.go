@@ -43,6 +43,7 @@ func (h *Handler) Endpoints(w http.ResponseWriter, r *http.Request) {
 		"trivy_url":                base + "/webhooks/trivy",
 		"harbor_secret_configured": h.cfg.HarborWebhookSecret != "",
 		"trivy_secret_configured":  h.cfg.TrivyWebhookSecret != "",
+		"harbor_api_configured":    h.cfg.HarborURL != "" && h.cfg.HarborToken != "",
 		"cve_pull_enabled":         h.cfg.CVEPullEnabled,
 		"cve_pull_configured":      h.cfg.TrivyURL != "" && h.cfg.TrivyToken != "",
 		"cve_pull_cron":            h.cfg.CVEPullCron,

@@ -56,12 +56,14 @@ func TestPaginationInvalidLimitUsesDefault(t *testing.T) {
 
 func TestEndpointsHandler(t *testing.T) {
 	h := NewHandler(nil, config.Config{
-		AppBaseURL:        "http://localhost:8080/",
+		AppBaseURL:          "http://localhost:8080/",
 		HarborWebhookSecret: "h",
-		CVEPullEnabled:    true,
-		CVEPullCron:       "0 6 * * 0",
-		TrivyURL:          "http://trivy",
-		TrivyToken:        "token",
+		HarborURL:           "https://harbor.example.com",
+		HarborToken:         "robot:secret",
+		CVEPullEnabled:      true,
+		CVEPullCron:         "0 6 * * 0",
+		TrivyURL:            "http://trivy",
+		TrivyToken:          "token",
 	}, nil)
 
 	rec := httptest.NewRecorder()
@@ -78,6 +80,9 @@ func TestEndpointsHandler(t *testing.T) {
 	}
 	if out["harbor_secret_configured"] != true {
 		t.Fatal("expected harbor secret configured")
+	}
+	if out["harbor_api_configured"] != true {
+		t.Fatal("expected harbor API configured")
 	}
 	if out["cve_pull_enabled"] != true {
 		t.Fatal("expected cve pull enabled flag")

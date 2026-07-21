@@ -55,6 +55,9 @@ type DeploymentReportInput struct {
 	LowCount      int32
 	ReportURL     string
 	DedupKey      string
+	Project       string
+	Repository    string
+	Digest        string
 }
 
 // ParseDeploymentReports parses Harbor v2 native events or legacy flat JSON payloads.
@@ -106,6 +109,11 @@ func parseNativeEvent(ev WebhookEvent, harborBaseURL string) []DeploymentReportI
 		}
 
 		dedup := fmt.Sprintf("%s:%s:%s:%s:%d", ev.Type, imageName, imageTag, res.Digest, ev.OccurAt)
+		project := ev.EventData.Repository.Namespace
+		repository := pathAfterFirst(repoName)
+		if project == "" {
+			project, repository = SplitRepoFullName(repoName)
+		}
 		out = append(out, DeploymentReportInput{
 			AppName:       repoName,
 			ImageName:     imageName,
@@ -118,6 +126,9 @@ func parseNativeEvent(ev WebhookEvent, harborBaseURL string) []DeploymentReportI
 			LowCount:      low,
 			ReportURL:     reportURL,
 			DedupKey:      dedup,
+			Project:       project,
+			Repository:    repository,
+			Digest:        res.Digest,
 		})
 	}
 	return out

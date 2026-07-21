@@ -73,6 +73,7 @@ function targetLabel(app: {
     :href="preview ? undefined : launchUrl(app)"
     :target="preview ? undefined : '_blank'"
     :rel="preview ? undefined : 'noopener'"
+    :title="launchUrl(app)"
   >
     <div class="flex items-start justify-between gap-3">
       <div

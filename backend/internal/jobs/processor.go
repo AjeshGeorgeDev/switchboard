@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -74,6 +75,8 @@ func (p *Processor) handleHarborWebhook(ctx context.Context, t *asynq.Task) (err
 	for _, report := range reports {
 		hash := reportHash(body, report.DedupKey)
 		if existing, err := p.queries.GetDeploymentReportByPayloadHash(ctx, pgtype.Text{String: hash, Valid: true}); err == nil && existing.ID.String() != "" {
+			// Still refresh CVE details for duplicate scan notifications when Harbor is configured.
+			_ = p.ingestHarborCVEs(ctx, report)
 			continue
 		}
 
@@ -99,6 +102,51 @@ func (p *Processor) handleHarborWebhook(ctx context.Context, t *asynq.Task) (err
 			Title:    fmt.Sprintf("Deployment: %s:%s", report.ImageName, report.ImageTag),
 			Body:     fmt.Sprintf("Status: %s", report.Status),
 			Severity: "info",
+		})
+		_ = p.ingestHarborCVEs(ctx, report)
+	}
+	return nil
+}
+
+func (p *Processor) ingestHarborCVEs(ctx context.Context, report harbor.DeploymentReportInput) error {
+	if p.harbor == nil || !p.harbor.Configured() || report.Digest == "" {
+		return nil
+	}
+	project := report.Project
+	repository := report.Repository
+	if project == "" || repository == "" {
+		project, repository = harbor.SplitRepoFullName(report.AppName)
+	}
+	findings, err := p.harbor.FetchArtifactVulnerabilities(ctx, project, repository, report.Digest)
+	if err != nil {
+		// Soft-fail: deployment report is already stored; Harbor API issues should not drop the webhook.
+		return nil
+	}
+	critical := false
+	for _, f := range findings {
+		sev := normalizeSeverity(strings.ToUpper(f.Severity))
+		_, _ = p.queries.UpsertCVEFinding(ctx, db.UpsertCVEFindingParams{
+			ImageName:        report.ImageName,
+			ImageTag:         report.ImageTag,
+			CveID:            f.CVEID,
+			Severity:         sev,
+			PackageName:      pgtype.Text{String: f.Package, Valid: f.Package != ""},
+			InstalledVersion: pgtype.Text{String: f.InstalledVersion, Valid: f.InstalledVersion != ""},
+			FixedVersion:     pgtype.Text{String: f.FixedVersion, Valid: f.FixedVersion != ""},
+			Source:           "webhook",
+			ScanDate:         time.Now(),
+			RawPayload:       f.Raw,
+		})
+		if sev == "critical" {
+			critical = true
+		}
+	}
+	if critical {
+		_ = p.notify.Notify(ctx, notifications.Event{
+			Type:     "critical_cve",
+			Title:    fmt.Sprintf("Critical CVE in %s:%s", report.ImageName, report.ImageTag),
+			Body:     "Critical vulnerabilities detected via Harbor scan",
+			Severity: "critical",
 		})
 	}
 	return nil
