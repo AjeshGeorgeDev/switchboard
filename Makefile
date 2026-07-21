@@ -43,12 +43,13 @@ sqlc-generate:
 build: frontend-build
 	cd backend && go build -o bin/server ./cmd/server
 
+# .env is included + exported above; recipes inherit HARBOR_*, JWT_*, etc.
 run:
-	cd backend && DATABASE_URL="$(DATABASE_URL)" REDIS_URL="$(REDIS_URL)" PORT="$(PORT)" go run ./cmd/server
+	cd backend && go run ./cmd/server
 
 backend-dev:
 	@test -x "$(GOPATH_BIN)/air" || (echo 'Install air: go install github.com/air-verse/air@latest' && exit 1)
-	cd backend && DATABASE_URL="$(DATABASE_URL)" REDIS_URL="$(REDIS_URL)" PORT="$(PORT)" "$(GOPATH_BIN)/air"
+	cd backend && "$(GOPATH_BIN)/air"
 
 test:
 	cd backend && go test ./...

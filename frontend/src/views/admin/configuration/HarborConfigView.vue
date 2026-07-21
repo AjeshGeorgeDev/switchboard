@@ -23,13 +23,14 @@ onMounted(loadSecretStatus)
         <p class="config-card-lead">
           Receive deployment and scan events from Harbor. Reports land under
           <strong>Security → Reports</strong>; per-CVE details are pulled from Harbor’s API into
-          <strong>Security → CVEs</strong> when <code>HARBOR_URL</code> and <code>HARBOR_TOKEN</code> are set.
+          <strong>Security → CVEs</strong> when <code>HARBOR_URL</code>, <code>HARBOR_USER</code>, and
+          <code>HARBOR_TOKEN</code> are set on the <em>backend</em> process.
         </p>
       </div>
       <div class="header-tags">
         <Tag
-          :value="secretStatus.harbor ? 'Webhook secret set' : 'No webhook secret'"
-          :severity="secretStatus.harbor ? 'success' : 'warn'"
+          :value="secretStatus.harbor ? 'Webhook HMAC set' : 'Webhook HMAC optional'"
+          :severity="secretStatus.harbor ? 'success' : 'secondary'"
         />
         <Tag
           :value="harborApiConfigured ? 'API credentials set' : 'API credentials missing'"
@@ -45,10 +46,11 @@ onMounted(loadSecretStatus)
         artifact digest and upserts findings into <em>Security → CVEs</em>.
       </span>
       <span v-else>
-        Set <code>HARBOR_URL</code>, <code>HARBOR_USER</code> (robot name), and
-        <code>HARBOR_TOKEN</code> (secret only). In Docker Compose escape
-        <code>$</code> as <code>$$</code> in robot names
-        (<code>robot$$project+name</code>). Webhooks still create deployment reports without these.
+        Add all three to the Switchboard <code>.env</code> (then restart <code>make backend-dev</code> /
+        the app container): <code>HARBOR_URL</code>, <code>HARBOR_USER</code> (robot name), and
+        <code>HARBOR_TOKEN</code> (secret only). In Docker Compose escape <code>$</code> as
+        <code>$$</code> (<code>robot$$project+name</code>). The “Webhook HMAC optional” tag is
+        unrelated — leave <code>HARBOR_WEBHOOK_SECRET</code> empty for Harbor’s native webhooks.
       </span>
     </div>
 
