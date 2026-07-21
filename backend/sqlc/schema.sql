@@ -42,6 +42,11 @@ CREATE TABLE oidc_providers (
     auto_provision BOOLEAN NOT NULL DEFAULT TRUE,
     default_role_id UUID REFERENCES roles(id),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    claim_email TEXT NOT NULL DEFAULT 'email',
+    claim_name TEXT NOT NULL DEFAULT 'name',
+    claim_subject TEXT NOT NULL DEFAULT 'sub',
+    claim_groups TEXT NOT NULL DEFAULT 'groups',
+    group_role_mappings JSONB NOT NULL DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

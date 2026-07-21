@@ -1,12 +1,47 @@
 const base = ''
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+let refreshPromise: Promise<boolean> | null = null
+
+function isAuthPath(path: string) {
+  return (
+    path.startsWith('/api/auth/login') ||
+    path.startsWith('/api/auth/refresh') ||
+    path.startsWith('/api/auth/logout')
+  )
+}
+
+async function refreshSession(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${base}/api/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        })
+        return res.ok
+      } catch {
+        return false
+      } finally {
+        refreshPromise = null
+      }
+    })()
+  }
+  return refreshPromise
+}
+
+async function request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
   const res = await fetch(`${base}${path}`, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
   })
   if (!res.ok) {
+    if (res.status === 401 && !retried && !isAuthPath(path)) {
+      const refreshed = await refreshSession()
+      if (refreshed) return request<T>(path, options, true)
+    }
     const text = await res.text()
     let message = text || res.statusText || `Request failed (${res.status})`
     if (text.trimStart().startsWith('{')) {

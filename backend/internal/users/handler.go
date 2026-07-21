@@ -3,6 +3,7 @@ package users
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -239,28 +240,124 @@ func (h *Handler) DeleteRole(w http.ResponseWriter, r *http.Request) {
 
 // OIDC providers
 
+func oidcProviderResponse(p db.OidcProvider) map[string]any {
+	mappings := json.RawMessage(p.GroupRoleMappings)
+	if len(mappings) == 0 {
+		mappings = json.RawMessage("[]")
+	}
+	var defaultRole any
+	if p.DefaultRoleID.Valid {
+		defaultRole = uuid.UUID(p.DefaultRoleID.Bytes).String()
+	}
+	return map[string]any{
+		"id":                  p.ID,
+		"name":                p.Name,
+		"display_name":        p.DisplayName,
+		"issuer_url":          p.IssuerUrl,
+		"client_id":           p.ClientID,
+		"client_secret":       p.ClientSecret,
+		"scopes":              p.Scopes,
+		"auto_provision":      p.AutoProvision,
+		"default_role_id":     defaultRole,
+		"is_active":           p.IsActive,
+		"claim_email":         p.ClaimEmail,
+		"claim_name":          p.ClaimName,
+		"claim_subject":       p.ClaimSubject,
+		"claim_groups":        p.ClaimGroups,
+		"group_role_mappings": mappings,
+		"created_at":          p.CreatedAt,
+	}
+}
+
 func (h *Handler) ListOIDCProviders(w http.ResponseWriter, r *http.Request) {
 	providers, err := h.queries.ListOIDCProviders(r.Context())
 	if err != nil {
 		http.Error(w, `{"error":"server error"}`, http.StatusInternalServerError)
 		return
 	}
-	auth.WriteJSON(w, http.StatusOK, providers)
+	out := make([]map[string]any, 0, len(providers))
+	for _, p := range providers {
+		out = append(out, oidcProviderResponse(p))
+	}
+	auth.WriteJSON(w, http.StatusOK, out)
+}
+
+type oidcProviderBody struct {
+	Name              string          `json:"name"`
+	DisplayName       string          `json:"display_name"`
+	IssuerUrl         string          `json:"issuer_url"`
+	ClientID          string          `json:"client_id"`
+	ClientSecret      string          `json:"client_secret"`
+	Scopes            []string        `json:"scopes"`
+	AutoProvision     bool            `json:"auto_provision"`
+	DefaultRoleID     *string         `json:"default_role_id"`
+	IsActive          bool            `json:"is_active"`
+	ClaimEmail        string          `json:"claim_email"`
+	ClaimName         string          `json:"claim_name"`
+	ClaimSubject      string          `json:"claim_subject"`
+	ClaimGroups       string          `json:"claim_groups"`
+	GroupRoleMappings json.RawMessage `json:"group_role_mappings"`
+}
+
+func normalizeClaimKey(value, fallback string) string {
+	v := strings.TrimSpace(value)
+	if v == "" {
+		return fallback
+	}
+	return v
+}
+
+func parseDefaultRoleID(raw *string) pgtype.UUID {
+	if raw == nil || strings.TrimSpace(*raw) == "" {
+		return pgtype.UUID{}
+	}
+	id, err := uuid.Parse(strings.TrimSpace(*raw))
+	if err != nil {
+		return pgtype.UUID{}
+	}
+	return pgtype.UUID{Bytes: id, Valid: true}
 }
 
 func (h *Handler) CreateOIDCProvider(w http.ResponseWriter, r *http.Request) {
-	var body db.CreateOIDCProviderParams
+	var body oidcProviderBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
 		return
 	}
-	p, err := h.queries.CreateOIDCProvider(r.Context(), body)
+	if strings.TrimSpace(body.Name) == "" || strings.TrimSpace(body.DisplayName) == "" {
+		http.Error(w, `{"error":"name and display_name are required"}`, http.StatusBadRequest)
+		return
+	}
+	scopes := body.Scopes
+	if len(scopes) == 0 {
+		scopes = []string{"openid", "profile", "email"}
+	}
+	mappings := body.GroupRoleMappings
+	if len(mappings) == 0 {
+		mappings = json.RawMessage("[]")
+	}
+	p, err := h.queries.CreateOIDCProvider(r.Context(), db.CreateOIDCProviderParams{
+		Name:              strings.TrimSpace(body.Name),
+		DisplayName:       strings.TrimSpace(body.DisplayName),
+		IssuerUrl:         strings.TrimSpace(body.IssuerUrl),
+		ClientID:          strings.TrimSpace(body.ClientID),
+		ClientSecret:      body.ClientSecret,
+		Scopes:            scopes,
+		AutoProvision:     body.AutoProvision,
+		DefaultRoleID:     parseDefaultRoleID(body.DefaultRoleID),
+		IsActive:          body.IsActive,
+		ClaimEmail:        normalizeClaimKey(body.ClaimEmail, "email"),
+		ClaimName:         normalizeClaimKey(body.ClaimName, "name"),
+		ClaimSubject:      normalizeClaimKey(body.ClaimSubject, "sub"),
+		ClaimGroups:       normalizeClaimKey(body.ClaimGroups, "groups"),
+		GroupRoleMappings: auth.NormalizeGroupRoleMappingsJSON(mappings),
+	})
 	if err != nil {
 		http.Error(w, `{"error":"create failed"}`, http.StatusInternalServerError)
 		return
 	}
 	h.audit.Log(audit.WithClientIP(r.Context(), r.RemoteAddr), "oidc_provider.create", "oidc_provider", p.ID.String(), map[string]interface{}{"name": body.Name})
-	auth.WriteJSON(w, http.StatusCreated, p)
+	auth.WriteJSON(w, http.StatusCreated, oidcProviderResponse(p))
 }
 
 func (h *Handler) UpdateOIDCProvider(w http.ResponseWriter, r *http.Request) {
@@ -269,43 +366,41 @@ func (h *Handler) UpdateOIDCProvider(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"invalid id"}`, http.StatusBadRequest)
 		return
 	}
-	var body struct {
-		DisplayName    string   `json:"display_name"`
-		IssuerUrl      string   `json:"issuer_url"`
-		ClientID       string   `json:"client_id"`
-		ClientSecret   string   `json:"client_secret"`
-		Scopes         []string `json:"scopes"`
-		AutoProvision  bool     `json:"auto_provision"`
-		DefaultRoleID  *string  `json:"default_role_id"`
-		IsActive       bool     `json:"is_active"`
-	}
+	var body oidcProviderBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
 		return
 	}
-	var defaultRole pgtype.UUID
-	if body.DefaultRoleID != nil {
-		if rid, err := uuid.Parse(*body.DefaultRoleID); err == nil {
-			defaultRole = pgtype.UUID{Bytes: rid, Valid: true}
-		}
+	scopes := body.Scopes
+	if len(scopes) == 0 {
+		scopes = []string{"openid", "profile", "email"}
+	}
+	mappings := body.GroupRoleMappings
+	if len(mappings) == 0 {
+		mappings = json.RawMessage("[]")
 	}
 	p, err := h.queries.UpdateOIDCProvider(r.Context(), db.UpdateOIDCProviderParams{
-		ID:            id,
-		DisplayName:   body.DisplayName,
-		IssuerUrl:     body.IssuerUrl,
-		ClientID:      body.ClientID,
-		ClientSecret:  body.ClientSecret,
-		Scopes:        body.Scopes,
-		AutoProvision: body.AutoProvision,
-		DefaultRoleID: defaultRole,
-		IsActive:      body.IsActive,
+		ID:                id,
+		DisplayName:       strings.TrimSpace(body.DisplayName),
+		IssuerUrl:         strings.TrimSpace(body.IssuerUrl),
+		ClientID:          strings.TrimSpace(body.ClientID),
+		ClientSecret:      body.ClientSecret,
+		Scopes:            scopes,
+		AutoProvision:     body.AutoProvision,
+		DefaultRoleID:     parseDefaultRoleID(body.DefaultRoleID),
+		IsActive:          body.IsActive,
+		ClaimEmail:        normalizeClaimKey(body.ClaimEmail, "email"),
+		ClaimName:         normalizeClaimKey(body.ClaimName, "name"),
+		ClaimSubject:      normalizeClaimKey(body.ClaimSubject, "sub"),
+		ClaimGroups:       normalizeClaimKey(body.ClaimGroups, "groups"),
+		GroupRoleMappings: auth.NormalizeGroupRoleMappingsJSON(mappings),
 	})
 	if err != nil {
 		http.Error(w, `{"error":"update failed"}`, http.StatusInternalServerError)
 		return
 	}
 	h.audit.Log(audit.WithClientIP(r.Context(), r.RemoteAddr), "oidc_provider.update", "oidc_provider", id.String(), map[string]interface{}{"display_name": body.DisplayName, "is_active": body.IsActive})
-	auth.WriteJSON(w, http.StatusOK, p)
+	auth.WriteJSON(w, http.StatusOK, oidcProviderResponse(p))
 }
 
 func (h *Handler) DeleteOIDCProvider(w http.ResponseWriter, r *http.Request) {

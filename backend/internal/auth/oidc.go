@@ -104,46 +104,50 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var claims struct {
-		Sub   string `json:"sub"`
-		Email string `json:"email"`
-		Name  string `json:"name"`
-	}
+	var claims map[string]any
 	if err := idToken.Claims(&claims); err != nil {
+		http.Error(w, `{"error":"invalid claims"}`, http.StatusUnauthorized)
+		return
+	}
+
+	identity, err := extractOIDCIdentity(claims, provider.ClaimSubject, provider.ClaimEmail, provider.ClaimName, provider.ClaimGroups)
+	if err != nil {
 		http.Error(w, `{"error":"invalid claims"}`, http.StatusUnauthorized)
 		return
 	}
 
 	user, err := h.queries.GetUserByOIDC(r.Context(), db.GetUserByOIDCParams{
 		OidcProvider: pgtype.Text{String: name, Valid: true},
-		OidcSubject:  pgtype.Text{String: claims.Sub, Valid: true},
+		OidcSubject:  pgtype.Text{String: identity.Subject, Valid: true},
 	})
+	isNew := false
 	if err != nil {
 		if !provider.AutoProvision {
 			http.Error(w, `{"error":"account not provisioned"}`, http.StatusForbidden)
 			return
 		}
-		username := fmt.Sprintf("%s_%s", name, claims.Sub[:8])
+		subPrefix := identity.Subject
+		if len(subPrefix) > 8 {
+			subPrefix = subPrefix[:8]
+		}
+		username := fmt.Sprintf("%s_%s", name, subPrefix)
 		user, err = h.queries.CreateUser(r.Context(), db.CreateUserParams{
 			Username:     username,
-			Email:        claims.Email,
-			DisplayName:  pgtype.Text{String: claims.Name, Valid: claims.Name != ""},
+			Email:        identity.Email,
+			DisplayName:  pgtype.Text{String: identity.DisplayName, Valid: identity.DisplayName != ""},
 			AuthType:     "oidc",
 			OidcProvider: pgtype.Text{String: name, Valid: true},
-			OidcSubject:  pgtype.Text{String: claims.Sub, Valid: true},
-			OidcEmail:    pgtype.Text{String: claims.Email, Valid: claims.Email != ""},
+			OidcSubject:  pgtype.Text{String: identity.Subject, Valid: true},
+			OidcEmail:    pgtype.Text{String: identity.Email, Valid: identity.Email != ""},
 		})
 		if err != nil {
 			http.Error(w, `{"error":"provision failed"}`, http.StatusInternalServerError)
 			return
 		}
-		if provider.DefaultRoleID.Valid {
-			_ = h.queries.AddUserRole(r.Context(), db.AddUserRoleParams{
-				UserID: user.ID,
-				RoleID: uuid.UUID(provider.DefaultRoleID.Bytes),
-			})
-		}
+		isNew = true
 	}
+
+	h.applyOIDCRoles(r.Context(), user.ID, provider, identity.Groups, isNew)
 
 	_ = h.queries.UpdateUserLastLogin(r.Context(), user.ID)
 	access, refresh, exp, refreshTTL, err := h.sessions.IssueSession(r.Context(), user.ID, r.UserAgent(), r.RemoteAddr, true)
@@ -156,6 +160,20 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		h.audit.LogAuth(r.Context(), user.ID, user.Username, "auth.login", r, map[string]interface{}{"method": "oidc", "provider": name})
 	}
 	http.Redirect(w, r, h.cfg.AppBaseURL+"/", http.StatusFound)
+}
+
+func (h *OIDCHandler) applyOIDCRoles(ctx context.Context, userID uuid.UUID, provider db.OidcProvider, groups []string, isNew bool) {
+	mappings := parseGroupRoleMappings(provider.GroupRoleMappings)
+	matched := matchedRoleIDs(groups, mappings)
+	for _, roleID := range matched {
+		_ = h.queries.AddUserRole(ctx, db.AddUserRoleParams{UserID: userID, RoleID: roleID})
+	}
+	if isNew && len(matched) == 0 && provider.DefaultRoleID.Valid {
+		_ = h.queries.AddUserRole(ctx, db.AddUserRoleParams{
+			UserID: userID,
+			RoleID: uuid.UUID(provider.DefaultRoleID.Bytes),
+		})
+	}
 }
 
 func (h *OIDCHandler) providerConfig(ctx context.Context, name string) (db.OidcProvider, *oauth2.Config, *oidc.Provider, error) {

@@ -551,17 +551,22 @@ type NotificationPreference struct {
 }
 
 type OidcProvider struct {
-	ID            uuid.UUID   `json:"id"`
-	Name          string      `json:"name"`
-	DisplayName   string      `json:"display_name"`
-	IssuerUrl     string      `json:"issuer_url"`
-	ClientID      string      `json:"client_id"`
-	ClientSecret  string      `json:"client_secret"`
-	Scopes        []string    `json:"scopes"`
-	AutoProvision bool        `json:"auto_provision"`
-	DefaultRoleID pgtype.UUID `json:"default_role_id"`
-	IsActive      bool        `json:"is_active"`
-	CreatedAt     time.Time   `json:"created_at"`
+	ID                uuid.UUID   `json:"id"`
+	Name              string      `json:"name"`
+	DisplayName       string      `json:"display_name"`
+	IssuerUrl         string      `json:"issuer_url"`
+	ClientID          string      `json:"client_id"`
+	ClientSecret      string      `json:"client_secret"`
+	Scopes            []string    `json:"scopes"`
+	AutoProvision     bool        `json:"auto_provision"`
+	DefaultRoleID     pgtype.UUID `json:"default_role_id"`
+	IsActive          bool        `json:"is_active"`
+	ClaimEmail        string      `json:"claim_email"`
+	ClaimName         string      `json:"claim_name"`
+	ClaimSubject      string      `json:"claim_subject"`
+	ClaimGroups       string      `json:"claim_groups"`
+	GroupRoleMappings []byte      `json:"group_role_mappings"`
+	CreatedAt         time.Time   `json:"created_at"`
 }
 
 type RefreshToken struct {

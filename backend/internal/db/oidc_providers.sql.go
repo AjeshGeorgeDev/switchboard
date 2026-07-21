@@ -14,21 +14,30 @@ import (
 )
 
 const createOIDCProvider = `-- name: CreateOIDCProvider :one
-INSERT INTO oidc_providers (name, display_name, issuer_url, client_id, client_secret, scopes, auto_provision, default_role_id, is_active)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, name, display_name, issuer_url, client_id, client_secret, scopes, auto_provision, default_role_id, is_active, created_at
+INSERT INTO oidc_providers (
+    name, display_name, issuer_url, client_id, client_secret, scopes,
+    auto_provision, default_role_id, is_active,
+    claim_email, claim_name, claim_subject, claim_groups, group_role_mappings
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+RETURNING id, name, display_name, issuer_url, client_id, client_secret, scopes, auto_provision, default_role_id, is_active, claim_email, claim_name, claim_subject, claim_groups, group_role_mappings, created_at
 `
 
 type CreateOIDCProviderParams struct {
-	Name          string      `json:"name"`
-	DisplayName   string      `json:"display_name"`
-	IssuerUrl     string      `json:"issuer_url"`
-	ClientID      string      `json:"client_id"`
-	ClientSecret  string      `json:"client_secret"`
-	Scopes        []string    `json:"scopes"`
-	AutoProvision bool        `json:"auto_provision"`
-	DefaultRoleID pgtype.UUID `json:"default_role_id"`
-	IsActive      bool        `json:"is_active"`
+	Name              string      `json:"name"`
+	DisplayName       string      `json:"display_name"`
+	IssuerUrl         string      `json:"issuer_url"`
+	ClientID          string      `json:"client_id"`
+	ClientSecret      string      `json:"client_secret"`
+	Scopes            []string    `json:"scopes"`
+	AutoProvision     bool        `json:"auto_provision"`
+	DefaultRoleID     pgtype.UUID `json:"default_role_id"`
+	IsActive          bool        `json:"is_active"`
+	ClaimEmail        string      `json:"claim_email"`
+	ClaimName         string      `json:"claim_name"`
+	ClaimSubject      string      `json:"claim_subject"`
+	ClaimGroups       string      `json:"claim_groups"`
+	GroupRoleMappings []byte      `json:"group_role_mappings"`
 }
 
 func (q *Queries) CreateOIDCProvider(ctx context.Context, arg CreateOIDCProviderParams) (OidcProvider, error) {
@@ -42,6 +51,11 @@ func (q *Queries) CreateOIDCProvider(ctx context.Context, arg CreateOIDCProvider
 		arg.AutoProvision,
 		arg.DefaultRoleID,
 		arg.IsActive,
+		arg.ClaimEmail,
+		arg.ClaimName,
+		arg.ClaimSubject,
+		arg.ClaimGroups,
+		arg.GroupRoleMappings,
 	)
 	var i OidcProvider
 	err := row.Scan(
@@ -55,6 +69,11 @@ func (q *Queries) CreateOIDCProvider(ctx context.Context, arg CreateOIDCProvider
 		&i.AutoProvision,
 		&i.DefaultRoleID,
 		&i.IsActive,
+		&i.ClaimEmail,
+		&i.ClaimName,
+		&i.ClaimSubject,
+		&i.ClaimGroups,
+		&i.GroupRoleMappings,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -70,7 +89,7 @@ func (q *Queries) DeleteOIDCProvider(ctx context.Context, id uuid.UUID) error {
 }
 
 const getOIDCProviderByID = `-- name: GetOIDCProviderByID :one
-SELECT id, name, display_name, issuer_url, client_id, client_secret, scopes, auto_provision, default_role_id, is_active, created_at FROM oidc_providers WHERE id = $1 LIMIT 1
+SELECT id, name, display_name, issuer_url, client_id, client_secret, scopes, auto_provision, default_role_id, is_active, claim_email, claim_name, claim_subject, claim_groups, group_role_mappings, created_at FROM oidc_providers WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetOIDCProviderByID(ctx context.Context, id uuid.UUID) (OidcProvider, error) {
@@ -87,13 +106,18 @@ func (q *Queries) GetOIDCProviderByID(ctx context.Context, id uuid.UUID) (OidcPr
 		&i.AutoProvision,
 		&i.DefaultRoleID,
 		&i.IsActive,
+		&i.ClaimEmail,
+		&i.ClaimName,
+		&i.ClaimSubject,
+		&i.ClaimGroups,
+		&i.GroupRoleMappings,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getOIDCProviderByName = `-- name: GetOIDCProviderByName :one
-SELECT id, name, display_name, issuer_url, client_id, client_secret, scopes, auto_provision, default_role_id, is_active, created_at FROM oidc_providers WHERE name = $1 LIMIT 1
+SELECT id, name, display_name, issuer_url, client_id, client_secret, scopes, auto_provision, default_role_id, is_active, claim_email, claim_name, claim_subject, claim_groups, group_role_mappings, created_at FROM oidc_providers WHERE name = $1 LIMIT 1
 `
 
 func (q *Queries) GetOIDCProviderByName(ctx context.Context, name string) (OidcProvider, error) {
@@ -110,6 +134,11 @@ func (q *Queries) GetOIDCProviderByName(ctx context.Context, name string) (OidcP
 		&i.AutoProvision,
 		&i.DefaultRoleID,
 		&i.IsActive,
+		&i.ClaimEmail,
+		&i.ClaimName,
+		&i.ClaimSubject,
+		&i.ClaimGroups,
+		&i.GroupRoleMappings,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -165,7 +194,7 @@ func (q *Queries) ListActiveOIDCProviders(ctx context.Context) ([]ListActiveOIDC
 }
 
 const listOIDCProviders = `-- name: ListOIDCProviders :many
-SELECT id, name, display_name, issuer_url, client_id, client_secret, scopes, auto_provision, default_role_id, is_active, created_at FROM oidc_providers ORDER BY name
+SELECT id, name, display_name, issuer_url, client_id, client_secret, scopes, auto_provision, default_role_id, is_active, claim_email, claim_name, claim_subject, claim_groups, group_role_mappings, created_at FROM oidc_providers ORDER BY name
 `
 
 func (q *Queries) ListOIDCProviders(ctx context.Context) ([]OidcProvider, error) {
@@ -188,6 +217,11 @@ func (q *Queries) ListOIDCProviders(ctx context.Context) ([]OidcProvider, error)
 			&i.AutoProvision,
 			&i.DefaultRoleID,
 			&i.IsActive,
+			&i.ClaimEmail,
+			&i.ClaimName,
+			&i.ClaimSubject,
+			&i.ClaimGroups,
+			&i.GroupRoleMappings,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -202,27 +236,42 @@ func (q *Queries) ListOIDCProviders(ctx context.Context) ([]OidcProvider, error)
 
 const updateOIDCProvider = `-- name: UpdateOIDCProvider :one
 UPDATE oidc_providers SET
-    display_name = $2, issuer_url = $3, client_id = $4, client_secret = $5,
-    scopes = $6, auto_provision = $7, default_role_id = $8, is_active = $9
-WHERE id = $1
-RETURNING id, name, display_name, issuer_url, client_id, client_secret, scopes, auto_provision, default_role_id, is_active, created_at
+    display_name = $1,
+    issuer_url = $2,
+    client_id = $3,
+    client_secret = COALESCE(NULLIF($4::text, ''), oidc_providers.client_secret),
+    scopes = $5,
+    auto_provision = $6,
+    default_role_id = $7,
+    is_active = $8,
+    claim_email = $9,
+    claim_name = $10,
+    claim_subject = $11,
+    claim_groups = $12,
+    group_role_mappings = $13
+WHERE id = $14
+RETURNING id, name, display_name, issuer_url, client_id, client_secret, scopes, auto_provision, default_role_id, is_active, claim_email, claim_name, claim_subject, claim_groups, group_role_mappings, created_at
 `
 
 type UpdateOIDCProviderParams struct {
-	ID            uuid.UUID   `json:"id"`
-	DisplayName   string      `json:"display_name"`
-	IssuerUrl     string      `json:"issuer_url"`
-	ClientID      string      `json:"client_id"`
-	ClientSecret  string      `json:"client_secret"`
-	Scopes        []string    `json:"scopes"`
-	AutoProvision bool        `json:"auto_provision"`
-	DefaultRoleID pgtype.UUID `json:"default_role_id"`
-	IsActive      bool        `json:"is_active"`
+	DisplayName       string      `json:"display_name"`
+	IssuerUrl         string      `json:"issuer_url"`
+	ClientID          string      `json:"client_id"`
+	ClientSecret      string      `json:"client_secret"`
+	Scopes            []string    `json:"scopes"`
+	AutoProvision     bool        `json:"auto_provision"`
+	DefaultRoleID     pgtype.UUID `json:"default_role_id"`
+	IsActive          bool        `json:"is_active"`
+	ClaimEmail        string      `json:"claim_email"`
+	ClaimName         string      `json:"claim_name"`
+	ClaimSubject      string      `json:"claim_subject"`
+	ClaimGroups       string      `json:"claim_groups"`
+	GroupRoleMappings []byte      `json:"group_role_mappings"`
+	ID                uuid.UUID   `json:"id"`
 }
 
 func (q *Queries) UpdateOIDCProvider(ctx context.Context, arg UpdateOIDCProviderParams) (OidcProvider, error) {
 	row := q.db.QueryRow(ctx, updateOIDCProvider,
-		arg.ID,
 		arg.DisplayName,
 		arg.IssuerUrl,
 		arg.ClientID,
@@ -231,6 +280,12 @@ func (q *Queries) UpdateOIDCProvider(ctx context.Context, arg UpdateOIDCProvider
 		arg.AutoProvision,
 		arg.DefaultRoleID,
 		arg.IsActive,
+		arg.ClaimEmail,
+		arg.ClaimName,
+		arg.ClaimSubject,
+		arg.ClaimGroups,
+		arg.GroupRoleMappings,
+		arg.ID,
 	)
 	var i OidcProvider
 	err := row.Scan(
@@ -244,6 +299,11 @@ func (q *Queries) UpdateOIDCProvider(ctx context.Context, arg UpdateOIDCProvider
 		&i.AutoProvision,
 		&i.DefaultRoleID,
 		&i.IsActive,
+		&i.ClaimEmail,
+		&i.ClaimName,
+		&i.ClaimSubject,
+		&i.ClaimGroups,
+		&i.GroupRoleMappings,
 		&i.CreatedAt,
 	)
 	return i, err

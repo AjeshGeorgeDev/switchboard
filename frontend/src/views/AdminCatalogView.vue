@@ -8,6 +8,8 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
+import IconField from 'primevue/iconfield'
+import InputIcon from 'primevue/inputicon'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import InputNumber from 'primevue/inputnumber'
@@ -39,11 +41,35 @@ const form = ref({
 })
 
 const MAX_ICON_BYTES = 500 * 1024
+const search = ref('')
 
 const accessTypeOptions = [
   { label: 'URL', value: 'url' },
   { label: 'IP / Port', value: 'ip_port' },
 ]
+
+const filteredApps = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return apps.value
+  return apps.value.filter((app) => {
+    const name = String(app.name || '').toLowerCase()
+    const description = (
+      typeof app.description === 'string'
+        ? app.description
+        : app.description?.String || ''
+    ).toLowerCase()
+    const target = String(app.target_host || '').toLowerCase()
+    const type = String(app.access_type || '').toLowerCase()
+    const section = sectionName(appSectionId(app)).toLowerCase()
+    return (
+      name.includes(q) ||
+      description.includes(q) ||
+      target.includes(q) ||
+      type.includes(q) ||
+      section.includes(q)
+    )
+  })
+})
 
 onMounted(load)
 
@@ -341,7 +367,17 @@ async function removeSection(section: CatalogSection) {
       </template>
     </PageHeader>
 
-    <DataTable :value="apps" paginator :rows="10" class="surface-card table-card">
+    <div class="catalog-toolbar">
+      <IconField class="catalog-search">
+        <InputIcon class="pi pi-search text-muted-color" />
+        <InputText v-model="search" placeholder="Search by name, section, target…" class="w-full" />
+      </IconField>
+      <span v-if="apps.length" class="catalog-count">
+        {{ filteredApps.length }} of {{ apps.length }}
+      </span>
+    </div>
+
+    <DataTable :value="filteredApps" paginator :rows="10" class="surface-card table-card">
       <Column field="name" header="Name" />
       <Column header="Section">
         <template #body="{ data }">
@@ -368,8 +404,9 @@ async function removeSection(section: CatalogSection) {
       </Column>
       <template #empty>
         <TableEmptyState
-          title="No applications"
-          message="Add your first launcher application to get started."
+          :title="search ? 'No matches' : 'No applications'"
+          :message="search ? 'Try a different search term.' : 'Add your first launcher application to get started.'"
+          :icon="search ? 'pi-search' : 'pi-inbox'"
         />
       </template>
     </DataTable>
@@ -567,6 +604,22 @@ async function removeSection(section: CatalogSection) {
 <style scoped>
 .table-card { overflow: hidden; }
 .mb-3 { margin-bottom: 1rem; }
+.catalog-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.catalog-search {
+  width: 100%;
+  max-width: 420px;
+}
+.catalog-count {
+  font-size: 0.875rem;
+  color: var(--sb-muted, var(--p-text-muted-color));
+}
 .preview-btn {
   margin-right: 0.5rem;
 }

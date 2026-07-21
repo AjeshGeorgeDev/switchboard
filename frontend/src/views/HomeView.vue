@@ -138,8 +138,11 @@ watch(
       />
     </main>
 
-    <footer class="relative z-10 border-t border-surface bg-surface-0/60 py-4 text-center text-xs text-muted-color backdrop-blur-sm">
-      Switchboard
+    <footer class="relative z-10 border-t border-surface bg-surface-0/60 backdrop-blur-sm">
+      <div class="flex w-full items-center justify-between gap-4 px-5 py-4 text-xs text-muted-color sm:px-8 lg:px-10">
+        <span>&copy; {{ new Date().getFullYear() }}</span>
+        <span>MIT License · Switchboard</span>
+      </div>
     </footer>
 
     <Dialog

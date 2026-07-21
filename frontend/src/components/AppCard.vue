@@ -64,25 +64,20 @@ function targetLabel(app: {
 </script>
 
 <template>
-  <!-- Public / homepage card -->
+  <!-- Public / homepage card — icon, name, link -->
   <component
     v-if="publicTile || featured"
     :is="preview ? 'div' : 'a'"
-    class="group relative flex min-h-[140px] flex-col overflow-hidden rounded-2xl border border-surface/80 bg-surface-0/90 p-4 text-left text-inherit no-underline shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:bg-surface-0 hover:shadow-md hover:shadow-primary/10"
+    class="group relative flex flex-col overflow-hidden rounded-border border border-surface bg-surface-0 p-4 text-left text-inherit no-underline shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-md"
     :class="preview ? 'cursor-default' : 'cursor-pointer'"
     :href="preview ? undefined : launchUrl(app)"
     :target="preview ? undefined : '_blank'"
     :rel="preview ? undefined : 'noopener'"
   >
-    <div
-      class="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-      :style="{ background: `radial-gradient(circle at 12% 0%, hsl(${hue(app.name)} 70% 60% / 0.14), transparent 55%)` }"
-    />
-
-    <div class="relative flex items-start justify-between gap-3">
+    <div class="flex items-start justify-between gap-3">
       <div
-        class="grid aspect-square h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-100 text-lg font-bold text-white shadow-sm"
-        :style="!textField(app.icon_url) ? { background: `linear-gradient(145deg, hsl(${hue(app.name)}, 65%, 55%), hsl(${hue(app.name)}, 75%, 42%))` } : undefined"
+        class="grid aspect-square h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-100 text-base font-extrabold text-white shadow-sm"
+        :style="!textField(app.icon_url) ? { background: `linear-gradient(145deg, hsl(${hue(app.name)}, 72%, 56%), hsl(${hue(app.name)}, 82%, 38%))` } : undefined"
       >
         <img
           v-if="textField(app.icon_url)"
@@ -94,27 +89,22 @@ function targetLabel(app: {
       </div>
       <span
         v-if="!preview"
-        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-100 text-muted-color transition-colors group-hover:bg-primary group-hover:text-primary-contrast"
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-100 text-muted-color transition-colors group-hover:bg-primary group-hover:text-primary-contrast"
       >
-        <i class="pi pi-arrow-up-right text-xs" />
+        <i class="pi pi-arrow-up-right text-sm" />
       </span>
     </div>
 
-    <div class="relative mt-3 flex flex-1 flex-col gap-1">
-      <h3 class="line-clamp-2 text-base font-semibold leading-snug text-color">
-        {{ app.name }}
-      </h3>
-    </div>
+    <h3 class="mt-3 text-base font-bold text-color">{{ app.name }}</h3>
 
-    <p
-      v-if="textField(app.description)"
-      class="pointer-events-none absolute inset-x-0 bottom-0 line-clamp-3 bg-gradient-to-t from-surface-0 via-surface-0/95 to-transparent px-4 pb-4 pt-8 text-sm leading-relaxed text-muted-color opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-    >
-      {{ textField(app.description) }}
-    </p>
+    <div class="mt-2 flex items-center gap-2">
+      <span class="min-w-0 flex-1 truncate font-mono text-xs text-muted-color">
+        {{ targetLabel(app) }}
+      </span>
+    </div>
   </component>
 
-  <!-- Default launcher card -->
+  <!-- Launcher / signed-in card — icon, name, category, link -->
   <component
     v-else
     :is="preview ? 'div' : 'a'"
