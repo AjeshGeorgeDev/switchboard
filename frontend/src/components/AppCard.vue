@@ -90,7 +90,7 @@ function targetLabel(app: {
       </div>
       <span
         v-if="!preview"
-        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-100 text-muted-color transition-colors group-hover:bg-primary group-hover:text-primary-contrast"
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-100 text-muted-color opacity-0 transition-all duration-200 group-hover:bg-primary group-hover:text-primary-contrast group-hover:opacity-100"
       >
         <i class="pi pi-arrow-up-right text-sm" />
       </span>
