@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -65,18 +66,30 @@ func (p *Processor) Register(mux *asynq.ServeMux) {
 
 func (p *Processor) handleHarborWebhook(ctx context.Context, t *asynq.Task) (err error) {
 	_, body, eventID := unwrapTask(t.Payload())
-	defer func() { p.markWebhookEvent(ctx, eventID, err) }()
+	var cveNote string
+	defer func() {
+		p.markWebhookEvent(ctx, eventID, err)
+		if err == nil && cveNote != "" && eventID != uuid.Nil {
+			_ = p.queries.UpdateWebhookEventStatus(ctx, db.UpdateWebhookEventStatusParams{
+				ID:           eventID,
+				Status:       db.WebhookEventStatusProcessed,
+				ErrorMessage: pgtype.Text{String: cveNote, Valid: true},
+			})
+		}
+	}()
 
 	reports, parseErr := harbor.ParseDeploymentReports(body, p.cfg.HarborURL)
 	if parseErr != nil {
 		return parseErr
 	}
 
+	var notes []string
 	for _, report := range reports {
 		hash := reportHash(body, report.DedupKey)
 		if existing, err := p.queries.GetDeploymentReportByPayloadHash(ctx, pgtype.Text{String: hash, Valid: true}); err == nil && existing.ID.String() != "" {
-			// Still refresh CVE details for duplicate scan notifications when Harbor is configured.
-			_ = p.ingestHarborCVEs(ctx, report)
+			if note := p.ingestHarborCVEs(ctx, report); note != "" {
+				notes = append(notes, note)
+			}
 			continue
 		}
 
@@ -103,14 +116,26 @@ func (p *Processor) handleHarborWebhook(ctx context.Context, t *asynq.Task) (err
 			Body:     fmt.Sprintf("Status: %s", report.Status),
 			Severity: "info",
 		})
-		_ = p.ingestHarborCVEs(ctx, report)
+		if note := p.ingestHarborCVEs(ctx, report); note != "" {
+			notes = append(notes, note)
+		}
+	}
+	if len(notes) > 0 {
+		cveNote = strings.Join(notes, "; ")
 	}
 	return nil
 }
 
-func (p *Processor) ingestHarborCVEs(ctx context.Context, report harbor.DeploymentReportInput) error {
-	if p.harbor == nil || !p.harbor.Configured() || report.Digest == "" {
-		return nil
+// ingestHarborCVEs fetches per-CVE details from Harbor. Returns a non-empty note when
+// enrichment was skipped or failed (webhook still succeeds).
+func (p *Processor) ingestHarborCVEs(ctx context.Context, report harbor.DeploymentReportInput) string {
+	if p.harbor == nil || !p.harbor.Configured() {
+		log.Printf("harbor CVE ingest skipped for %s:%s: HARBOR_URL/HARBOR_TOKEN not configured", report.ImageName, report.ImageTag)
+		return "CVE ingest skipped: set HARBOR_URL and HARBOR_TOKEN"
+	}
+	if report.Digest == "" {
+		log.Printf("harbor CVE ingest skipped for %s:%s: no artifact digest in webhook", report.ImageName, report.ImageTag)
+		return "CVE ingest skipped: webhook payload has no artifact digest (need SCANNING_COMPLETED)"
 	}
 	project := report.Project
 	repository := report.Repository
@@ -119,8 +144,12 @@ func (p *Processor) ingestHarborCVEs(ctx context.Context, report harbor.Deployme
 	}
 	findings, err := p.harbor.FetchArtifactVulnerabilities(ctx, project, repository, report.Digest)
 	if err != nil {
-		// Soft-fail: deployment report is already stored; Harbor API issues should not drop the webhook.
-		return nil
+		log.Printf("harbor CVE ingest failed for %s/%s@%s: %v", project, repository, report.Digest, err)
+		return "CVE ingest failed: " + err.Error()
+	}
+	if len(findings) == 0 {
+		log.Printf("harbor CVE ingest: no findings for %s/%s@%s", project, repository, report.Digest)
+		return "CVE ingest: Harbor returned 0 vulnerabilities (check scan completed and robot has artifact-addition read)"
 	}
 	critical := false
 	for _, f := range findings {
@@ -141,6 +170,7 @@ func (p *Processor) ingestHarborCVEs(ctx context.Context, report harbor.Deployme
 			critical = true
 		}
 	}
+	log.Printf("harbor CVE ingest: upserted %d findings for %s:%s", len(findings), report.ImageName, report.ImageTag)
 	if critical {
 		_ = p.notify.Notify(ctx, notifications.Event{
 			Type:     "critical_cve",
@@ -149,7 +179,7 @@ func (p *Processor) ingestHarborCVEs(ctx context.Context, report harbor.Deployme
 			Severity: "critical",
 		})
 	}
-	return nil
+	return ""
 }
 
 func (p *Processor) handleTrivyWebhook(ctx context.Context, t *asynq.Task) (err error) {
