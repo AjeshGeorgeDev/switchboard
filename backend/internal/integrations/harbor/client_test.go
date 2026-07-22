@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/switchboard/switchboard/internal/config"
+	"github.com/switchboard/switchboard/internal/settings"
 )
 
 func TestEncodeHarborRepository(t *testing.T) {
@@ -97,10 +97,10 @@ func TestFetchArtifactVulnerabilities(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(config.Config{
-		HarborURL:   srv.URL,
-		HarborUser:  "robot$lib",
-		HarborToken: "secret",
+	c := NewClient(settings.HarborConfig{
+		URL:   srv.URL,
+		User:  "robot$lib",
+		Token: "secret",
 	})
 	findings, err := c.FetchArtifactVulnerabilities(t.Context(), "library", "nginx", "sha256:abc")
 	if err != nil {
@@ -112,16 +112,40 @@ func TestFetchArtifactVulnerabilities(t *testing.T) {
 }
 
 func TestFetchArtifactVulnerabilitiesNotConfigured(t *testing.T) {
-	c := NewClient(config.Config{})
+	c := NewClient(settings.HarborConfig{})
 	findings, err := c.FetchArtifactVulnerabilities(t.Context(), "p", "r", "sha256:x")
 	if err != nil || findings != nil {
 		t.Fatalf("expected nil,nil got %v %v", findings, err)
 	}
 }
 
+func TestPing(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v2.0/projects" {
+			t.Fatalf("path: %s", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") == "" {
+			t.Fatal("missing auth")
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(settings.HarborConfig{URL: srv.URL, User: "robot$lib", Token: "secret"})
+	if err := c.Ping(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	bad := NewClient(settings.HarborConfig{})
+	if err := bad.Ping(t.Context()); err == nil {
+		t.Fatal("expected error when not configured")
+	}
+}
+
 func TestSetHarborAuth(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "http://example", nil)
-	if err := setHarborAuth(req, config.Config{HarborUser: "robot$lib", HarborToken: "secret"}); err != nil {
+	if err := setHarborAuth(req, settings.HarborConfig{User: "robot$lib", Token: "secret"}); err != nil {
 		t.Fatal(err)
 	}
 	if !stringsHasPrefix(req.Header.Get("Authorization"), "Basic ") {
@@ -129,7 +153,7 @@ func TestSetHarborAuth(t *testing.T) {
 	}
 
 	req2, _ := http.NewRequest(http.MethodGet, "http://example", nil)
-	if err := setHarborAuth(req2, config.Config{HarborToken: "user:pass"}); err != nil {
+	if err := setHarborAuth(req2, settings.HarborConfig{Token: "user:pass"}); err != nil {
 		t.Fatal(err)
 	}
 	if !stringsHasPrefix(req2.Header.Get("Authorization"), "Basic ") {
@@ -137,7 +161,7 @@ func TestSetHarborAuth(t *testing.T) {
 	}
 
 	req3, _ := http.NewRequest(http.MethodGet, "http://example", nil)
-	if err := setHarborAuth(req3, config.Config{HarborToken: "token-only"}); err == nil {
+	if err := setHarborAuth(req3, settings.HarborConfig{Token: "token-only"}); err == nil {
 		t.Fatal("expected error for secret-only token without user")
 	}
 }

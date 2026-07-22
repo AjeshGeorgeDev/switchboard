@@ -10,6 +10,7 @@ import (
 	"github.com/switchboard/switchboard/internal/auth"
 	"github.com/switchboard/switchboard/internal/config"
 	"github.com/switchboard/switchboard/internal/db"
+	"github.com/switchboard/switchboard/internal/settings"
 	"gopkg.in/gomail.v2"
 )
 
@@ -49,12 +50,13 @@ func inviteURL(cfg config.Config, token string) string {
 	return fmt.Sprintf("%s/invite?token=%s", base, token)
 }
 
-func sendInviteEmail(cfg config.Config, email, inviteLink string) error {
-	if cfg.SMTPHost == "" {
+func sendInviteEmail(ctx context.Context, q *db.Queries, cfg config.Config, email, inviteLink string) error {
+	smtp := settings.ResolveSMTP(ctx, q, cfg)
+	if !smtp.Configured() {
 		return nil
 	}
 	m := gomail.NewMessage()
-	m.SetHeader("From", cfg.SMTPFrom)
+	m.SetHeader("From", smtp.From)
 	m.SetHeader("To", email)
 	m.SetHeader("Subject", "You're invited to Switchboard")
 	body := fmt.Sprintf(
@@ -62,7 +64,7 @@ func sendInviteEmail(cfg config.Config, email, inviteLink string) error {
 		inviteLink,
 	)
 	m.SetBody("text/html", body)
-	d := gomail.NewDialer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass)
+	d := gomail.NewDialer(smtp.Host, smtp.Port, smtp.User, smtp.Pass)
 	return d.DialAndSend(m)
 }
 

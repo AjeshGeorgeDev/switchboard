@@ -19,6 +19,7 @@ import (
 	"github.com/switchboard/switchboard/internal/config"
 	"github.com/switchboard/switchboard/internal/db"
 	"github.com/switchboard/switchboard/internal/jobs"
+	"github.com/switchboard/switchboard/internal/settings"
 )
 
 type Handler struct {
@@ -38,12 +39,13 @@ type taskEnvelope struct {
 
 func (h *Handler) Endpoints(w http.ResponseWriter, r *http.Request) {
 	base := strings.TrimRight(h.cfg.AppBaseURL, "/")
+	harborCfg := settings.ResolveHarbor(r.Context(), h.queries, h.cfg)
 	auth.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"harbor_url":               base + "/webhooks/harbor",
 		"trivy_url":                base + "/webhooks/trivy",
-		"harbor_secret_configured": h.cfg.HarborWebhookSecret != "",
+		"harbor_secret_configured": harborCfg.WebhookSecret != "",
 		"trivy_secret_configured":  h.cfg.TrivyWebhookSecret != "",
-		"harbor_api_configured":    h.cfg.HarborURL != "" && (h.cfg.HarborUser != "" && h.cfg.HarborToken != "" || strings.Contains(h.cfg.HarborToken, ":")),
+		"harbor_api_configured":    harborCfg.APIConfigured(),
 		"cve_pull_enabled":         h.cfg.CVEPullEnabled,
 		"cve_pull_configured":      h.cfg.TrivyURL != "" && h.cfg.TrivyToken != "",
 		"cve_pull_cron":            h.cfg.CVEPullCron,
@@ -86,7 +88,8 @@ func (h *Handler) Harbor(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"read failed"}`, http.StatusBadRequest)
 		return
 	}
-	if !verifySecret(body, r.Header.Get("X-Webhook-Signature"), h.cfg.HarborWebhookSecret) {
+	harborCfg := settings.ResolveHarbor(r.Context(), h.queries, h.cfg)
+	if !verifySecret(body, r.Header.Get("X-Webhook-Signature"), harborCfg.WebhookSecret) {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/switchboard/switchboard/internal/config"
 	"github.com/switchboard/switchboard/internal/db"
+	"github.com/switchboard/switchboard/internal/settings"
 )
 
 type Event struct {
@@ -144,11 +145,12 @@ func (s *Service) SendEmailPayload(ctx context.Context, payload []byte) error {
 	if err := json.Unmarshal(payload, &event); err != nil {
 		return err
 	}
-	if s.cfg.SMTPHost == "" {
+	smtp := settings.ResolveSMTP(ctx, s.queries, s.cfg)
+	if !smtp.Configured() {
 		return nil
 	}
 	users, _ := s.queries.GetUsersByRoleName(ctx, "security-team")
-	return sendSMTP(s.cfg, users, event)
+	return sendSMTP(smtp, users, event)
 }
 
 func teamsCard(event Event) map[string]interface{} {

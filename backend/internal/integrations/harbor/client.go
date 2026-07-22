@@ -12,40 +12,68 @@ import (
 	"time"
 
 	"github.com/switchboard/switchboard/internal/config"
+	"github.com/switchboard/switchboard/internal/settings"
 )
 
 const vulnReportMIME = "application/vnd.security.vulnerability.report; version=1.1"
 
 type Client struct {
-	cfg    config.Config
+	cred   settings.HarborConfig
 	client *http.Client
 }
 
-func NewClient(cfg config.Config) *Client {
+func NewClient(cred settings.HarborConfig) *Client {
 	return &Client{
-		cfg: cfg,
+		cred: cred,
 		client: &http.Client{
 			Timeout: 60 * time.Second,
 		},
 	}
 }
 
-func (c *Client) Configured() bool {
-	return strings.TrimSpace(c.cfg.HarborURL) != "" && harborCredentialsConfigured(c.cfg)
+// NewClientFromEnv builds a client from process env only (no DB). Prefer NewClient with ResolveHarbor.
+func NewClientFromEnv(cfg config.Config) *Client {
+	return NewClient(settings.HarborConfig{
+		URL:           cfg.HarborURL,
+		User:          cfg.HarborUser,
+		Token:         cfg.HarborToken,
+		WebhookSecret: cfg.HarborWebhookSecret,
+	})
 }
 
-func harborCredentialsConfigured(cfg config.Config) bool {
-	token := strings.TrimSpace(cfg.HarborToken)
-	user := strings.TrimSpace(cfg.HarborUser)
-	if token == "" {
-		return false
+func (c *Client) Configured() bool {
+	return c.cred.APIConfigured()
+}
+
+// Ping verifies Harbor URL + credentials with an authenticated API call.
+func (c *Client) Ping(ctx context.Context) error {
+	if !c.Configured() {
+		return fmt.Errorf("Harbor URL and credentials are required")
 	}
-	// Preferred: HARBOR_USER + HARBOR_TOKEN (secret only)
-	if user != "" {
-		return true
+	base := strings.TrimRight(strings.TrimSpace(c.cred.URL), "/")
+	// projects listing works for typical project robots; users/current is less reliable for robots.
+	endpoint := base + "/api/v2.0/projects?page_size=1"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return err
 	}
-	// Legacy: HARBOR_TOKEN=username:secret
-	return strings.Contains(token, ":")
+	req.Header.Set("Accept", "application/json")
+	if err := setHarborAuth(req, c.cred); err != nil {
+		return err
+	}
+	res, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("unreachable: %w", err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
+		return fmt.Errorf("%s — check robot username and token", res.Status)
+	}
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return fmt.Errorf("harbor API %s: %s", res.Status, truncate(body, 160))
+	}
+	return nil
 }
 
 // Finding is a normalized vulnerability from Harbor's artifact additions API.
@@ -87,7 +115,7 @@ func (c *Client) FetchArtifactVulnerabilities(ctx context.Context, project, repo
 		return nil, fmt.Errorf("project, repository, and digest are required")
 	}
 
-	base := strings.TrimRight(strings.TrimSpace(c.cfg.HarborURL), "/")
+	base := strings.TrimRight(strings.TrimSpace(c.cred.URL), "/")
 	endpoint := fmt.Sprintf(
 		"%s/api/v2.0/projects/%s/repositories/%s/artifacts/%s/additions/vulnerabilities",
 		base,
@@ -102,7 +130,7 @@ func (c *Client) FetchArtifactVulnerabilities(ctx context.Context, project, repo
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("X-Accept-Vulnerabilities", vulnReportMIME)
-	if err := setHarborAuth(req, c.cfg); err != nil {
+	if err := setHarborAuth(req, c.cred); err != nil {
 		return nil, err
 	}
 
@@ -119,7 +147,7 @@ func (c *Client) FetchArtifactVulnerabilities(ctx context.Context, project, repo
 		return nil, nil
 	}
 	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
-		return nil, fmt.Errorf("%s — check HARBOR_USER/HARBOR_TOKEN (robot Basic auth). In Docker Compose escape $ as $$ in robot names (robot$$project+name)", res.Status)
+		return nil, fmt.Errorf("%s — check Harbor user/token (robot Basic auth)", res.Status)
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return nil, fmt.Errorf("harbor vulnerabilities API %s: %s", res.Status, truncate(body, 200))
@@ -138,29 +166,27 @@ func encodeHarborRepository(repository string) string {
 	return strings.Join(parts, "%2F")
 }
 
-func setHarborAuth(req *http.Request, cfg config.Config) error {
-	user := strings.TrimSpace(cfg.HarborUser)
-	token := strings.TrimSpace(cfg.HarborToken)
+func setHarborAuth(req *http.Request, cred settings.HarborConfig) error {
+	user := strings.TrimSpace(cred.User)
+	token := strings.TrimSpace(cred.Token)
 	if token == "" {
-		return fmt.Errorf("HARBOR_TOKEN is empty")
+		return fmt.Errorf("Harbor token is empty")
 	}
 
 	var basic string
 	switch {
 	case user != "":
-		// Preferred: separate user + secret (avoids Docker Compose eating $ in robot$...)
 		basic = user + ":" + token
 	case strings.Contains(token, ":"):
 		basic = token
 	default:
-		return fmt.Errorf("set HARBOR_USER to the robot name (e.g. robot$$project+name) and HARBOR_TOKEN to the secret only")
+		return fmt.Errorf("set Harbor user to the robot name and token to the secret only")
 	}
 	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(basic)))
 	return nil
 }
 
 func parseVulnerabilityAddition(body []byte) ([]Finding, error) {
-	// Harbor returns a map keyed by MIME type → report object.
 	var byMIME map[string]json.RawMessage
 	if err := json.Unmarshal(body, &byMIME); err == nil && len(byMIME) > 0 {
 		if raw, ok := byMIME[vulnReportMIME]; ok {
@@ -176,7 +202,6 @@ func parseVulnerabilityAddition(body []byte) ([]Finding, error) {
 			}
 		}
 	}
-	// Some versions return the report object directly.
 	return parseVulnReport(body)
 }
 
@@ -225,7 +250,7 @@ func SplitRepoFullName(full string) (project, repository string) {
 }
 
 func (c *Client) ListRepositories(ctx context.Context) ([]string, error) {
-	if c.cfg.HarborURL == "" {
+	if c.cred.URL == "" {
 		return []string{}, nil
 	}
 	_ = ctx

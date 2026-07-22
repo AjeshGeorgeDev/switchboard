@@ -15,6 +15,7 @@ import (
 	"github.com/switchboard/switchboard/internal/audit"
 	"github.com/switchboard/switchboard/internal/auth"
 	"github.com/switchboard/switchboard/internal/db"
+	"github.com/switchboard/switchboard/internal/settings"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -150,7 +151,8 @@ func (h *Handler) InviteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	link := inviteURL(h.cfg, token)
-	emailErr := sendInviteEmail(h.cfg, email, link)
+	emailErr := sendInviteEmail(r.Context(), h.queries, h.cfg, email, link)
+	smtpConfigured := settings.ResolveSMTP(r.Context(), h.queries, h.cfg).Configured()
 	roleIDStrings := make([]string, len(roleUUIDs))
 	for i, id := range roleUUIDs {
 		roleIDStrings[i] = id.String()
@@ -165,7 +167,7 @@ func (h *Handler) InviteUser(w http.ResponseWriter, r *http.Request) {
 			CreatedAt: invitation.CreatedAt,
 		},
 		"invite_url":  link,
-		"email_sent":  emailErr == nil && h.cfg.SMTPHost != "",
+		"email_sent":  emailErr == nil && smtpConfigured,
 		"email_error": errString(emailErr),
 	})
 }

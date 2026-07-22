@@ -70,7 +70,7 @@ func New(ctx context.Context, cfg config.Config) (*Server, error) {
 	notifyH := notifications.NewHandler(queries, cfg)
 	webhookH := webhooks.NewHandler(asynqClient, cfg, queries)
 	auditH := audit.NewHandler(queries)
-	settingsH := settings.NewHandler(queries)
+	settingsH := settings.NewHandler(queries, cfg)
 	setupH := setup.NewHandler(pool, queries, localAuth)
 	setupGate := setup.BlockIfIncomplete(queries)
 
@@ -178,12 +178,18 @@ func New(ctx context.Context, cfg config.Config) (*Server, error) {
 		r.Post("/teams-webhooks", notifyH.CreateTeamsWebhook)
 		r.Patch("/teams-webhooks/{id}", notifyH.UpdateTeamsWebhook)
 		r.Delete("/teams-webhooks/{id}", notifyH.DeleteTeamsWebhook)
-		r.Get("/smtp-status", notifyH.SMTPStatus)
+		r.Get("/smtp-status", settingsH.GetSMTP) // deprecated alias; prefer /settings/smtp
 		r.Get("/webhook-endpoints", webhookH.Endpoints)
 		r.Get("/webhook-events", webhookH.ListEvents)
 		r.Get("/webhook-events/{id}", webhookH.GetEvent)
 		r.Get("/audit-logs", auditH.List)
 		r.Put("/settings/theme", settingsH.UpdateTheme)
+		r.Get("/settings/harbor", settingsH.GetHarbor)
+		r.Put("/settings/harbor", settingsH.UpdateHarbor)
+		r.Post("/settings/harbor/test", settingsH.TestHarbor)
+		r.Get("/settings/smtp", settingsH.GetSMTP)
+		r.Put("/settings/smtp", settingsH.UpdateSMTP)
+		r.Post("/settings/smtp/test", settingsH.TestSMTP)
 	})
 
 	}) // setupGate group

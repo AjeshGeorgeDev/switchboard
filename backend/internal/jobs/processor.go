@@ -19,6 +19,7 @@ import (
 	"github.com/switchboard/switchboard/internal/integrations/harbor"
 	"github.com/switchboard/switchboard/internal/integrations/trivy"
 	"github.com/switchboard/switchboard/internal/notifications"
+	"github.com/switchboard/switchboard/internal/settings"
 )
 
 const (
@@ -40,7 +41,6 @@ type Processor struct {
 	queries *db.Queries
 	cfg     config.Config
 	notify  *notifications.Service
-	harbor  *harbor.Client
 	trivy   *trivy.Client
 }
 
@@ -49,7 +49,6 @@ func NewProcessor(pool *pgxpool.Pool, cfg config.Config, notify *notifications.S
 		queries: db.New(pool),
 		cfg:     cfg,
 		notify:  notify,
-		harbor:  harbor.NewClient(cfg),
 		trivy:   trivy.NewClient(cfg),
 	}
 }
@@ -78,7 +77,8 @@ func (p *Processor) handleHarborWebhook(ctx context.Context, t *asynq.Task) (err
 		}
 	}()
 
-	reports, parseErr := harbor.ParseDeploymentReports(body, p.cfg.HarborURL)
+	harborCfg := settings.ResolveHarbor(ctx, p.queries, p.cfg)
+	reports, parseErr := harbor.ParseDeploymentReports(body, harborCfg.URL)
 	if parseErr != nil {
 		return parseErr
 	}
@@ -129,9 +129,11 @@ func (p *Processor) handleHarborWebhook(ctx context.Context, t *asynq.Task) (err
 // ingestHarborCVEs fetches per-CVE details from Harbor. Returns a non-empty note when
 // enrichment was skipped or failed (webhook still succeeds).
 func (p *Processor) ingestHarborCVEs(ctx context.Context, report harbor.DeploymentReportInput) string {
-	if p.harbor == nil || !p.harbor.Configured() {
-		log.Printf("harbor CVE ingest skipped for %s:%s: HARBOR_URL / HARBOR_USER / HARBOR_TOKEN not configured", report.ImageName, report.ImageTag)
-		return "CVE ingest skipped: set HARBOR_URL, HARBOR_USER, and HARBOR_TOKEN"
+	harborCfg := settings.ResolveHarbor(ctx, p.queries, p.cfg)
+	client := harbor.NewClient(harborCfg)
+	if !client.Configured() {
+		log.Printf("harbor CVE ingest skipped for %s:%s: Harbor API credentials not configured", report.ImageName, report.ImageTag)
+		return "CVE ingest skipped: configure Harbor under Admin → Configuration"
 	}
 	if report.Digest == "" {
 		log.Printf("harbor CVE ingest skipped for %s:%s: no artifact digest in webhook", report.ImageName, report.ImageTag)
@@ -142,7 +144,7 @@ func (p *Processor) ingestHarborCVEs(ctx context.Context, report harbor.Deployme
 	if project == "" || repository == "" {
 		project, repository = harbor.SplitRepoFullName(report.AppName)
 	}
-	findings, err := p.harbor.FetchArtifactVulnerabilities(ctx, project, repository, report.Digest)
+	findings, err := client.FetchArtifactVulnerabilities(ctx, project, repository, report.Digest)
 	if err != nil {
 		log.Printf("harbor CVE ingest failed for %s/%s@%s: %v", project, repository, report.Digest, err)
 		return "CVE ingest failed: " + err.Error()

@@ -161,11 +161,11 @@ make db-backup
 | `REDIS_URL` | `redis://localhost:6379/0` | Redis for asynq |
 | `JWT_SECRET` | `dev-secret-change-in-production` | JWT signing key |
 | `APP_BASE_URL` | `http://localhost:8080` | Base URL for OIDC callbacks |
-| `HARBOR_URL` / `HARBOR_TOKEN` | — | Harbor API credentials |
+| `HARBOR_URL` / `HARBOR_USER` / `HARBOR_TOKEN` | — | Harbor API credentials (fallback; prefer **Admin → Configuration → Harbor**) |
 | `TRIVY_URL` / `TRIVY_TOKEN` | — | Trivy API credentials |
-| `HARBOR_WEBHOOK_SECRET` / `TRIVY_WEBHOOK_SECRET` | — | Webhook HMAC secrets |
+| `HARBOR_WEBHOOK_SECRET` / `TRIVY_WEBHOOK_SECRET` | — | Webhook HMAC secrets (Harbor secret also editable in the UI) |
 | `CVE_PULL_CRON` | `0 6 * * 0` | Weekly CVE pull schedule |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | — | Email notifications |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | — | Email (fallback; prefer **Admin → Configuration → Email**) |
 
 ## Webhooks
 
@@ -189,10 +189,10 @@ Register these endpoints in Harbor/Trivy (URLs are also shown under **Admin → 
 3. Open your project → **Webhooks** → **+ New Webhook**:
    - **Endpoint URL:** `{APP_BASE_URL}/webhooks/harbor`
    - **Events:** `PUSH_ARTIFACT`, `SCANNING_COMPLETED` (and optionally `SCANNING_FAILED`)
-4. Set `HARBOR_URL`, `HARBOR_USER` (robot name), and `HARBOR_TOKEN` (secret only). Harbor uses HTTP Basic auth. In Docker Compose, escape `$` in robot names as `$$` (e.g. `HARBOR_USER=robot$$project+switchboard`).
+4. Under **Admin → Configuration → Harbor**, save Harbor URL, robot username, and token (secret only). Env vars remain a fallback. Harbor uses HTTP Basic auth.
 5. Test the webhook from Harbor; expect `202` with `{"status":"accepted"}`.
 6. Deployment summaries appear under **Security → Reports**; CVE rows under **Security → CVEs** when API credentials are set.
-7. For production auth, set `HARBOR_WEBHOOK_SECRET` and send `X-Webhook-Signature` (HMAC-SHA256 hex of raw body). Harbor does not send this header natively — use a CI relay or leave the secret empty in dev.
+7. For production auth, set a webhook HMAC secret in the Harbor configuration UI (or `HARBOR_WEBHOOK_SECRET`) and send `X-Webhook-Signature` (HMAC-SHA256 hex of raw body). Harbor does not send this header natively — use a CI relay or leave the secret empty for native Harbor webhooks.
 
 **Trivy setup**
 

@@ -10,6 +10,7 @@ import (
 	"github.com/switchboard/switchboard/internal/auth"
 	"github.com/switchboard/switchboard/internal/config"
 	"github.com/switchboard/switchboard/internal/db"
+	"github.com/switchboard/switchboard/internal/settings"
 	"gopkg.in/gomail.v2"
 )
 
@@ -160,20 +161,23 @@ func (h *Handler) DeleteTeamsWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) SMTPStatus(w http.ResponseWriter, r *http.Request) {
+	cfg := settings.ResolveSMTP(r.Context(), h.queries, h.cfg)
 	auth.WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"configured": h.cfg.SMTPHost != "",
-		"host":       h.cfg.SMTPHost,
-		"port":       h.cfg.SMTPPort,
-		"from":       h.cfg.SMTPFrom,
+		"configured":      cfg.Configured(),
+		"host":            cfg.Host,
+		"port":            cfg.Port,
+		"user":            cfg.User,
+		"from":            cfg.From,
+		"pass_configured": cfg.Pass != "",
 	})
 }
 
-func sendSMTP(cfg config.Config, users []db.User, event Event) error {
-	if cfg.SMTPHost == "" {
+func sendSMTP(smtp settings.SMTPConfig, users []db.User, event Event) error {
+	if !smtp.Configured() {
 		return nil
 	}
 	m := gomail.NewMessage()
-	m.SetHeader("From", cfg.SMTPFrom)
+	m.SetHeader("From", smtp.From)
 	var recipients []string
 	for _, u := range users {
 		recipients = append(recipients, u.Email)
@@ -184,6 +188,6 @@ func sendSMTP(cfg config.Config, users []db.User, event Event) error {
 	m.SetHeader("To", recipients...)
 	m.SetHeader("Subject", event.Title)
 	m.SetBody("text/html", fmt.Sprintf("<h1>%s</h1><p>%s</p>", event.Title, event.Body))
-	d := gomail.NewDialer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass)
+	d := gomail.NewDialer(smtp.Host, smtp.Port, smtp.User, smtp.Pass)
 	return d.DialAndSend(m)
 }
