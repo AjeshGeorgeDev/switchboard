@@ -214,3 +214,23 @@ CREATE TABLE app_settings (
     value TEXT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE email_outbound_log (
+    id UUID PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    body_preview TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL,
+    error_message TEXT,
+    triggered_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE email_outbound_recipients (
+    id UUID PRIMARY KEY,
+    log_id UUID NOT NULL REFERENCES email_outbound_log(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    status TEXT NOT NULL,
+    error_message TEXT
+);

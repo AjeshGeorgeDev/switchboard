@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -18,6 +19,7 @@ type Event struct {
 	Type     string
 	Title    string
 	Body     string
+	HTMLBody string
 	Severity string
 	LinkURL  string
 }
@@ -69,11 +71,29 @@ func (s *Service) Notify(ctx context.Context, event Event) error {
 func (s *Service) eligibleUsers(ctx context.Context, eventType string) ([]db.User, error) {
 	switch eventType {
 	case "weekly_digest", "critical_cve", "deployment_report":
-		return s.queries.GetUsersByRoleName(ctx, "security-team")
+		roles := settings.EmailRecipientRoles(ctx, s.queries, eventType)
+		if eventType == "deployment_report" {
+			// deployment_report keeps historical default unless roles configured for it later
+			roles = []string{"security-team"}
+		}
+		return s.queries.GetUsersByRoleNames(ctx, roles)
 	default:
-		users, err := s.queries.ListUsers(ctx)
-		return users, err
+		return s.queries.ListUsers(ctx)
 	}
+}
+
+func (s *Service) emailRecipientsForEvent(ctx context.Context, eventType string) ([]db.User, error) {
+	users, err := s.eligibleUsers(ctx, eventType)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]db.User, 0, len(users))
+	for _, u := range users {
+		if s.channelEnabled(ctx, u.ID, "email", eventType) {
+			out = append(out, u)
+		}
+	}
+	return out, nil
 }
 
 func (s *Service) channelEnabled(ctx context.Context, userID uuid.UUID, channel, eventType string) bool {
@@ -98,17 +118,8 @@ func defaultEnabled(channel, eventType string) bool {
 
 func (s *Service) anyChannelEnabled(ctx context.Context, users []db.User, channel, eventType string) bool {
 	for _, u := range users {
-		prefs, _ := s.queries.GetNotificationPreferences(ctx, u.ID)
-		if len(prefs) == 0 {
-			if defaultEnabled(channel, eventType) {
-				return true
-			}
-			continue
-		}
-		for _, p := range prefs {
-			if string(p.Channel) == channel && string(p.EventType) == eventType && p.Enabled {
-				return true
-			}
+		if s.channelEnabled(ctx, u.ID, channel, eventType) {
+			return true
 		}
 	}
 	return false
@@ -146,16 +157,28 @@ func (s *Service) SendEmailPayload(ctx context.Context, payload []byte) error {
 		return err
 	}
 	smtp := settings.ResolveSMTP(ctx, s.queries, s.cfg)
-	if !smtp.Configured() {
-		return nil
+	users, err := s.emailRecipientsForEvent(ctx, event.Type)
+	if err != nil {
+		return err
 	}
-	users, _ := s.queries.GetUsersByRoleName(ctx, "security-team")
-	return sendSMTP(smtp, users, event)
+	html := event.HTMLBody
+	if html == "" {
+		html = fmt.Sprintf("<h1>%s</h1><p>%s</p>", event.Title, event.Body)
+		if event.LinkURL != "" {
+			html += fmt.Sprintf(`<p><a href="%s">Open in Switchboard</a></p>`, event.LinkURL)
+		}
+	}
+	return deliverSMTP(ctx, s.queries, smtp, usersToMailRecipients(users), OutboundOptions{
+		EventType: event.Type,
+		Subject:   event.Title,
+		HTMLBody:  html,
+		PlainBody: event.Body,
+	})
 }
 
 func teamsCard(event Event) map[string]interface{} {
 	return map[string]interface{}{
-		"type":    "message",
+		"type": "message",
 		"attachments": []map[string]interface{}{
 			{
 				"contentType": "application/vnd.microsoft.card.adaptive",

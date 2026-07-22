@@ -164,8 +164,22 @@ make db-backup
 | `HARBOR_URL` / `HARBOR_USER` / `HARBOR_TOKEN` | — | Harbor API credentials (fallback; prefer **Admin → Configuration → Harbor**) |
 | `TRIVY_URL` / `TRIVY_TOKEN` | — | Trivy API credentials |
 | `HARBOR_WEBHOOK_SECRET` / `TRIVY_WEBHOOK_SECRET` | — | Webhook HMAC secrets (Harbor secret also editable in the UI) |
-| `CVE_PULL_CRON` | `0 6 * * 0` | Weekly CVE pull schedule |
+| `CVE_PULL_CRON` | `0 6 * * 0` | Weekly CVE pull schedule (when enabled) |
+| `CVE_PULL_ENABLED` | `false` | Enable Trivy API CVE pull cron |
+| `DIGEST_ENABLED` | `true` | Weekly security digest email/Teams/in-app for configured recipient roles |
+| `DIGEST_CRON` | `0 9 * * 1` | Digest schedule (default Monday 09:00) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | — | Email (fallback; prefer **Admin → Configuration → Email**) |
+
+## Security Overview
+
+Users with `admin` or `security-team` can open **Security → Overview** for Harbor-driven posture without logging into Harbor:
+
+- Severity totals, new findings this week, fixable criticals
+- Aging buckets for critical/high (&lt;7d / 7–30d / &gt;30d)
+- Riskiest images (click through to filtered CVE list)
+- **Export CSV** of findings
+
+A weekly digest (independent of Trivy pull) summarizes the same stats and links back to Overview. Configure SMTP and **who receives** under **Admin → Configuration → Email** (roles for digest / critical CVE). Users opt out in **Profile → Notification preferences**. Outbound attempts (digest, critical, invite, SMTP test) appear in the **Email log** on that same page.
 
 ## Webhooks
 

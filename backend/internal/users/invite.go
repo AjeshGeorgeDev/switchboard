@@ -151,7 +151,11 @@ func (h *Handler) InviteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	link := inviteURL(h.cfg, token)
-	emailErr := sendInviteEmail(r.Context(), h.queries, h.cfg, email, link)
+	var triggeredBy *uuid.UUID
+	if inviterID != uuid.Nil {
+		triggeredBy = &inviterID
+	}
+	emailErr := sendInviteEmail(r.Context(), h.queries, h.cfg, email, link, triggeredBy)
 	smtpConfigured := settings.ResolveSMTP(r.Context(), h.queries, h.cfg).Configured()
 	roleIDStrings := make([]string, len(roleUUIDs))
 	for i, id := range roleUUIDs {

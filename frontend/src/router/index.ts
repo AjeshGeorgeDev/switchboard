@@ -40,6 +40,7 @@ const router = createRouter({
     },
     { path: '/admin/audit', component: () => import('../views/AdminAuditLogView.vue'), meta: { admin: true } },
     { path: '/admin/notifications', redirect: '/admin/configuration/harbor' },
+    { path: '/security', component: () => import('../views/SecurityOverviewView.vue'), meta: { security: true } },
     { path: '/security/cves', component: () => import('../views/CveDashboardView.vue'), meta: { security: true } },
     { path: '/security/reports', component: () => import('../views/DeploymentReportsView.vue'), meta: { security: true } },
     { path: '/security/reports/:id', component: () => import('../views/ReportDetailView.vue'), meta: { security: true } },

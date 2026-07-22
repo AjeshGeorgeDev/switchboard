@@ -53,3 +53,10 @@ SELECT u.* FROM users u
 JOIN user_roles ur ON ur.user_id = u.id
 JOIN roles r ON r.id = ur.role_id
 WHERE r.name = $1 AND u.is_active = TRUE;
+
+-- name: GetUsersByRoleNames :many
+SELECT DISTINCT u.* FROM users u
+JOIN user_roles ur ON ur.user_id = u.id
+JOIN roles r ON r.id = ur.role_id
+WHERE r.name = ANY($1::text[]) AND u.is_active = TRUE
+ORDER BY u.email;

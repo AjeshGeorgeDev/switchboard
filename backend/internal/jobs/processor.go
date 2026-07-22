@@ -19,6 +19,7 @@ import (
 	"github.com/switchboard/switchboard/internal/integrations/harbor"
 	"github.com/switchboard/switchboard/internal/integrations/trivy"
 	"github.com/switchboard/switchboard/internal/notifications"
+	"github.com/switchboard/switchboard/internal/security"
 	"github.com/switchboard/switchboard/internal/settings"
 )
 
@@ -153,7 +154,7 @@ func (p *Processor) ingestHarborCVEs(ctx context.Context, report harbor.Deployme
 		log.Printf("harbor CVE ingest: no findings for %s/%s@%s", project, repository, report.Digest)
 		return "CVE ingest: Harbor returned 0 vulnerabilities (check scan completed and robot has artifact-addition read)"
 	}
-	critical := false
+	var criticalLines []string
 	for _, f := range findings {
 		sev := normalizeSeverity(strings.ToUpper(f.Severity))
 		_, _ = p.queries.UpsertCVEFinding(ctx, db.UpsertCVEFindingParams{
@@ -169,16 +170,31 @@ func (p *Processor) ingestHarborCVEs(ctx context.Context, report harbor.Deployme
 			RawPayload:       f.Raw,
 		})
 		if sev == "critical" {
-			critical = true
+			line := f.CVEID
+			if f.Package != "" {
+				line += " (" + f.Package
+				if f.FixedVersion != "" {
+					line += ", fix " + f.FixedVersion
+				}
+				line += ")"
+			} else if f.FixedVersion != "" {
+				line += " (fix " + f.FixedVersion + ")"
+			}
+			criticalLines = append(criticalLines, line)
 		}
 	}
 	log.Printf("harbor CVE ingest: upserted %d findings for %s:%s", len(findings), report.ImageName, report.ImageTag)
-	if critical {
+	if len(criticalLines) > 0 {
+		body := strings.Join(criticalLines, "; ")
+		if len(criticalLines) > 5 {
+			body = strings.Join(criticalLines[:5], "; ") + fmt.Sprintf(" (+%d more)", len(criticalLines)-5)
+		}
 		_ = p.notify.Notify(ctx, notifications.Event{
 			Type:     "critical_cve",
 			Title:    fmt.Sprintf("Critical CVE in %s:%s", report.ImageName, report.ImageTag),
-			Body:     "Critical vulnerabilities detected via Harbor scan",
+			Body:     body,
 			Severity: "critical",
+			LinkURL:  strings.TrimRight(p.cfg.AppBaseURL, "/") + "/security",
 		})
 	}
 	return ""
@@ -205,7 +221,7 @@ func (p *Processor) handleTrivyWebhook(ctx context.Context, t *asynq.Task) (err 
 	}
 
 	imageName, imageTag := splitImage(payload.ArtifactName)
-	critical := false
+	var criticalLines []string
 	for _, res := range payload.Results {
 		for _, v := range res.Vulnerabilities {
 			raw, _ := json.Marshal(v)
@@ -221,18 +237,31 @@ func (p *Processor) handleTrivyWebhook(ctx context.Context, t *asynq.Task) (err 
 				ScanDate:         time.Now(),
 				RawPayload:       raw,
 			})
-			if v.Severity == "CRITICAL" {
-				critical = true
+			if strings.EqualFold(v.Severity, "CRITICAL") {
+				line := v.VulnerabilityID
+				if v.PkgName != "" {
+					line += " (" + v.PkgName
+					if v.FixedVersion != "" {
+						line += ", fix " + v.FixedVersion
+					}
+					line += ")"
+				}
+				criticalLines = append(criticalLines, line)
 			}
 		}
 	}
 
-	if critical {
+	if len(criticalLines) > 0 {
+		body := strings.Join(criticalLines, "; ")
+		if len(criticalLines) > 5 {
+			body = strings.Join(criticalLines[:5], "; ") + fmt.Sprintf(" (+%d more)", len(criticalLines)-5)
+		}
 		return p.notify.Notify(ctx, notifications.Event{
 			Type:     "critical_cve",
 			Title:    fmt.Sprintf("Critical CVE in %s:%s", imageName, imageTag),
-			Body:     "Critical vulnerabilities detected in deployment scan",
+			Body:     body,
 			Severity: "critical",
+			LinkURL:  strings.TrimRight(p.cfg.AppBaseURL, "/") + "/security",
 		})
 	}
 	return nil
@@ -273,11 +302,42 @@ func (p *Processor) handleCVEPull(ctx context.Context, _ *asynq.Task) error {
 }
 
 func (p *Processor) handleNotifyDigest(ctx context.Context, _ *asynq.Task) error {
+	overview, err := security.BuildOverview(ctx, p.queries, 8)
+	if err != nil {
+		return err
+	}
+	base := strings.TrimRight(p.cfg.AppBaseURL, "/")
+	overviewURL := base + "/security"
+	data := notifications.DigestEmailData{
+		Title:           "Weekly security digest",
+		Intro:           "Harbor vulnerability posture from Switchboard.",
+		OverviewURL:     overviewURL,
+		Critical:        overview.Stats.CriticalCount,
+		High:            overview.Stats.HighCount,
+		NewThisWeek:     overview.Stats.NewThisWeek,
+		FixableCritical: overview.Stats.FixableCritical,
+		AgingLt7d:       overview.Stats.AgingLt7d,
+		AgingGt30d:      overview.Stats.AgingGt30d,
+	}
+	for _, img := range overview.TopImages {
+		data.TopImages = append(data.TopImages, notifications.DigestImageRow{
+			Name:       img.ImageName,
+			Critical:   img.CriticalCount,
+			High:       img.HighCount,
+			OldestDays: img.OldestCriticalDays,
+		})
+	}
+	html, err := notifications.RenderWeeklyDigestHTML(data)
+	if err != nil {
+		html = ""
+	}
 	return p.notify.Notify(ctx, notifications.Event{
 		Type:     "weekly_digest",
-		Title:    "Weekly CVE Digest",
-		Body:     "Your weekly security digest is ready",
+		Title:    data.Title,
+		Body:     notifications.PlainDigestBody(data),
+		HTMLBody: html,
 		Severity: "info",
+		LinkURL:  overviewURL,
 	})
 }
 

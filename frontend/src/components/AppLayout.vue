@@ -15,6 +15,7 @@ const primaryNav = computed(() => {
   const items = [{ label: 'My Apps', to: '/launcher', icon: 'pi pi-th-large' }]
   if (auth.canViewSecurity()) {
     items.push(
+      { label: 'Overview', to: '/security', icon: 'pi pi-chart-bar' },
       { label: 'CVEs', to: '/security/cves', icon: 'pi pi-shield' },
       { label: 'Reports', to: '/security/reports', icon: 'pi pi-file' },
     )
@@ -36,6 +37,7 @@ const adminNav = computed(() => {
 
 function isActive(path: string) {
   if (path === '/launcher') return route.path === '/launcher'
+  if (path === '/security') return route.path === '/security'
   if (path === '/admin/configuration') return route.path.startsWith('/admin/configuration')
   return route.path.startsWith(path)
 }

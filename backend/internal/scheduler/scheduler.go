@@ -26,6 +26,21 @@ func Start(cfg config.Config, client *asynq.Client) *cron.Cron {
 		log.Printf("CVE pull cron disabled (set CVE_PULL_ENABLED=true to enable)")
 	}
 
+	if cfg.DigestEnabled {
+		_, err := c.AddFunc(cfg.DigestCron, func() {
+			if _, err := client.Enqueue(asynq.NewTask(jobs.TypeNotifyDigest, nil)); err != nil {
+				log.Printf("enqueue weekly digest: %v", err)
+			}
+		})
+		if err != nil {
+			log.Printf("cron weekly digest: %v", err)
+		} else {
+			log.Printf("Weekly digest cron enabled: %s", cfg.DigestCron)
+		}
+	} else {
+		log.Printf("Weekly digest cron disabled (set DIGEST_ENABLED=true to enable)")
+	}
+
 	_, err := c.AddFunc("0 3 * * *", func() {
 		if _, err := client.Enqueue(asynq.NewTask(jobs.TypeRetentionCleanup, nil)); err != nil {
 			log.Printf("enqueue retention cleanup: %v", err)

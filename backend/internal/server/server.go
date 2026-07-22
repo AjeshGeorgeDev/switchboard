@@ -119,7 +119,10 @@ func New(ctx context.Context, cfg config.Config) (*Server, error) {
 
 	r.Route("/api/security", func(r chi.Router) {
 		r.Use(authMW.RequireAuth, rbac.RequirePermission(enforcer, auth.GetRolesFromRequest, "security", "read"))
+		r.Get("/overview", securityH.Overview)
+		r.Get("/images", securityH.ListImages)
 		r.Get("/cves", securityH.ListCVEs)
+		r.Get("/cves/export", securityH.ExportCVEs)
 		r.Get("/reports", securityH.ListReports)
 		r.Get("/reports/{id}", securityH.GetReport)
 	})
@@ -190,6 +193,9 @@ func New(ctx context.Context, cfg config.Config) (*Server, error) {
 		r.Get("/settings/smtp", settingsH.GetSMTP)
 		r.Put("/settings/smtp", settingsH.UpdateSMTP)
 		r.Post("/settings/smtp/test", settingsH.TestSMTP)
+		r.Get("/settings/email-recipients", settingsH.GetEmailRecipients)
+		r.Put("/settings/email-recipients", settingsH.UpdateEmailRecipients)
+		r.Get("/email-log", settingsH.ListEmailLog)
 	})
 
 	}) // setupGate group

@@ -41,6 +41,17 @@ func (q *Queries) CountCVEFindingsFiltered(ctx context.Context, arg CountCVEFind
 	return count, err
 }
 
+const countImageRiskRollup = `-- name: CountImageRiskRollup :one
+SELECT COUNT(DISTINCT image_name) FROM cve_findings
+`
+
+func (q *Queries) CountImageRiskRollup(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countImageRiskRollup)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteOldCVEFindings = `-- name: DeleteOldCVEFindings :exec
 DELETE FROM cve_findings WHERE created_at < $1
 `
@@ -48,6 +59,76 @@ DELETE FROM cve_findings WHERE created_at < $1
 func (q *Queries) DeleteOldCVEFindings(ctx context.Context, createdAt time.Time) error {
 	_, err := q.db.Exec(ctx, deleteOldCVEFindings, createdAt)
 	return err
+}
+
+const getCVEOverviewStats = `-- name: GetCVEOverviewStats :one
+SELECT
+    COUNT(*) FILTER (WHERE severity = 'critical') AS critical_count,
+    COUNT(*) FILTER (WHERE severity = 'high') AS high_count,
+    COUNT(*) FILTER (WHERE severity = 'medium') AS medium_count,
+    COUNT(*) FILTER (WHERE severity = 'low') AS low_count,
+    COUNT(*) FILTER (
+        WHERE severity = 'critical'
+          AND fixed_version IS NOT NULL
+          AND BTRIM(fixed_version) <> ''
+    ) AS fixable_critical,
+    COUNT(*) FILTER (
+        WHERE severity IN ('critical', 'high')
+          AND fixed_version IS NOT NULL
+          AND BTRIM(fixed_version) <> ''
+    ) AS fixable_critical_high,
+    COUNT(*) FILTER (
+        WHERE severity IN ('critical', 'high')
+          AND (fixed_version IS NULL OR BTRIM(fixed_version) = '')
+    ) AS unfixed_critical_high,
+    COUNT(*) FILTER (WHERE created_at >= now() - interval '7 days') AS new_this_week,
+    COUNT(*) FILTER (
+        WHERE severity IN ('critical', 'high')
+          AND created_at >= now() - interval '7 days'
+    ) AS aging_lt_7d,
+    COUNT(*) FILTER (
+        WHERE severity IN ('critical', 'high')
+          AND created_at < now() - interval '7 days'
+          AND created_at >= now() - interval '30 days'
+    ) AS aging_7_to_30d,
+    COUNT(*) FILTER (
+        WHERE severity IN ('critical', 'high')
+          AND created_at < now() - interval '30 days'
+    ) AS aging_gt_30d
+FROM cve_findings
+`
+
+type GetCVEOverviewStatsRow struct {
+	CriticalCount       int64 `json:"critical_count"`
+	HighCount           int64 `json:"high_count"`
+	MediumCount         int64 `json:"medium_count"`
+	LowCount            int64 `json:"low_count"`
+	FixableCritical     int64 `json:"fixable_critical"`
+	FixableCriticalHigh int64 `json:"fixable_critical_high"`
+	UnfixedCriticalHigh int64 `json:"unfixed_critical_high"`
+	NewThisWeek         int64 `json:"new_this_week"`
+	AgingLt7d           int64 `json:"aging_lt_7d"`
+	Aging7To30d         int64 `json:"aging_7_to_30d"`
+	AgingGt30d          int64 `json:"aging_gt_30d"`
+}
+
+func (q *Queries) GetCVEOverviewStats(ctx context.Context) (GetCVEOverviewStatsRow, error) {
+	row := q.db.QueryRow(ctx, getCVEOverviewStats)
+	var i GetCVEOverviewStatsRow
+	err := row.Scan(
+		&i.CriticalCount,
+		&i.HighCount,
+		&i.MediumCount,
+		&i.LowCount,
+		&i.FixableCritical,
+		&i.FixableCriticalHigh,
+		&i.UnfixedCriticalHigh,
+		&i.NewThisWeek,
+		&i.AgingLt7d,
+		&i.Aging7To30d,
+		&i.AgingGt30d,
+	)
+	return i, err
 }
 
 const getCVESummary = `-- name: GetCVESummary :one
@@ -240,6 +321,180 @@ func (q *Queries) ListCVEFindingsFiltered(ctx context.Context, arg ListCVEFindin
 			&i.ScanDate,
 			&i.RawPayload,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCVEFindingsForExport = `-- name: ListCVEFindingsForExport :many
+SELECT id, image_name, image_tag, cve_id, severity, package_name, installed_version, fixed_version, source, scan_date, raw_payload, created_at FROM cve_findings
+WHERE ($1 = '' OR severity::text = $1)
+  AND ($2 = '' OR image_name ILIKE '%' || $2 || '%' OR cve_id ILIKE '%' || $2 || '%')
+ORDER BY
+    CASE severity
+        WHEN 'critical' THEN 1
+        WHEN 'high' THEN 2
+        WHEN 'medium' THEN 3
+        ELSE 4
+    END,
+    scan_date DESC
+LIMIT $3
+`
+
+type ListCVEFindingsForExportParams struct {
+	Column1 interface{} `json:"column_1"`
+	Column2 interface{} `json:"column_2"`
+	Limit   int32       `json:"limit"`
+}
+
+func (q *Queries) ListCVEFindingsForExport(ctx context.Context, arg ListCVEFindingsForExportParams) ([]CveFinding, error) {
+	rows, err := q.db.Query(ctx, listCVEFindingsForExport, arg.Column1, arg.Column2, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CveFinding{}
+	for rows.Next() {
+		var i CveFinding
+		if err := rows.Scan(
+			&i.ID,
+			&i.ImageName,
+			&i.ImageTag,
+			&i.CveID,
+			&i.Severity,
+			&i.PackageName,
+			&i.InstalledVersion,
+			&i.FixedVersion,
+			&i.Source,
+			&i.ScanDate,
+			&i.RawPayload,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listImageRiskRollup = `-- name: ListImageRiskRollup :many
+SELECT
+    image_name,
+    (ARRAY_AGG(image_tag ORDER BY scan_date DESC))[1]::text AS latest_tag,
+    COUNT(DISTINCT image_tag)::bigint AS tag_count,
+    COUNT(*) FILTER (WHERE severity = 'critical')::bigint AS critical_count,
+    COUNT(*) FILTER (WHERE severity = 'high')::bigint AS high_count,
+    COUNT(*) FILTER (WHERE severity = 'medium')::bigint AS medium_count,
+    COUNT(*) FILTER (WHERE severity = 'low')::bigint AS low_count,
+    COUNT(*)::bigint AS total_count,
+    MIN(created_at) FILTER (WHERE severity = 'critical') AS oldest_critical_at
+FROM cve_findings
+GROUP BY image_name
+ORDER BY critical_count DESC, high_count DESC, total_count DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListImageRiskRollupParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type ListImageRiskRollupRow struct {
+	ImageName        string      `json:"image_name"`
+	LatestTag        string      `json:"latest_tag"`
+	TagCount         int64       `json:"tag_count"`
+	CriticalCount    int64       `json:"critical_count"`
+	HighCount        int64       `json:"high_count"`
+	MediumCount      int64       `json:"medium_count"`
+	LowCount         int64       `json:"low_count"`
+	TotalCount       int64       `json:"total_count"`
+	OldestCriticalAt interface{} `json:"oldest_critical_at"`
+}
+
+func (q *Queries) ListImageRiskRollup(ctx context.Context, arg ListImageRiskRollupParams) ([]ListImageRiskRollupRow, error) {
+	rows, err := q.db.Query(ctx, listImageRiskRollup, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListImageRiskRollupRow{}
+	for rows.Next() {
+		var i ListImageRiskRollupRow
+		if err := rows.Scan(
+			&i.ImageName,
+			&i.LatestTag,
+			&i.TagCount,
+			&i.CriticalCount,
+			&i.HighCount,
+			&i.MediumCount,
+			&i.LowCount,
+			&i.TotalCount,
+			&i.OldestCriticalAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTopRiskyImages = `-- name: ListTopRiskyImages :many
+SELECT
+    image_name,
+    (ARRAY_AGG(image_tag ORDER BY scan_date DESC))[1]::text AS latest_tag,
+    COUNT(*) FILTER (WHERE severity = 'critical')::bigint AS critical_count,
+    COUNT(*) FILTER (WHERE severity = 'high')::bigint AS high_count,
+    COUNT(*) FILTER (WHERE severity = 'medium')::bigint AS medium_count,
+    COUNT(*) FILTER (WHERE severity = 'low')::bigint AS low_count,
+    COUNT(*)::bigint AS total_count,
+    MIN(created_at) FILTER (WHERE severity = 'critical') AS oldest_critical_at
+FROM cve_findings
+GROUP BY image_name
+ORDER BY critical_count DESC, high_count DESC, total_count DESC
+LIMIT $1
+`
+
+type ListTopRiskyImagesRow struct {
+	ImageName        string      `json:"image_name"`
+	LatestTag        string      `json:"latest_tag"`
+	CriticalCount    int64       `json:"critical_count"`
+	HighCount        int64       `json:"high_count"`
+	MediumCount      int64       `json:"medium_count"`
+	LowCount         int64       `json:"low_count"`
+	TotalCount       int64       `json:"total_count"`
+	OldestCriticalAt interface{} `json:"oldest_critical_at"`
+}
+
+func (q *Queries) ListTopRiskyImages(ctx context.Context, limit int32) ([]ListTopRiskyImagesRow, error) {
+	rows, err := q.db.Query(ctx, listTopRiskyImages, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTopRiskyImagesRow{}
+	for rows.Next() {
+		var i ListTopRiskyImagesRow
+		if err := rows.Scan(
+			&i.ImageName,
+			&i.LatestTag,
+			&i.CriticalCount,
+			&i.HighCount,
+			&i.MediumCount,
+			&i.LowCount,
+			&i.TotalCount,
+			&i.OldestCriticalAt,
 		); err != nil {
 			return nil, err
 		}

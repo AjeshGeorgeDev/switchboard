@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/switchboard/switchboard/internal/auth"
 	"github.com/switchboard/switchboard/internal/config"
 	"github.com/switchboard/switchboard/internal/db"
@@ -282,16 +284,45 @@ func (h *Handler) TestSMTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	body := "This is a test email from Switchboard. SMTP is configured correctly."
 	m := gomail.NewMessage()
 	m.SetHeader("From", cfg.From)
 	m.SetHeader("To", user.Email)
 	m.SetHeader("Subject", "Switchboard SMTP test")
-	m.SetBody("text/plain", "This is a test email from Switchboard. SMTP is configured correctly.")
+	m.SetBody("text/plain", body)
 	d := gomail.NewDialer(cfg.Host, cfg.Port, cfg.User, cfg.Pass)
-	if err := d.DialAndSend(m); err != nil {
+	sendErr := d.DialAndSend(m)
+
+	status := "sent"
+	errText := pgtype.Text{}
+	recStatus := "sent"
+	if sendErr != nil {
+		status = "failed"
+		recStatus = "failed"
+		errText = pgtype.Text{String: sendErr.Error(), Valid: true}
+	}
+	logRow, logErr := h.queries.CreateEmailOutboundLog(r.Context(), db.CreateEmailOutboundLogParams{
+		EventType:    "smtp_test",
+		Subject:      "Switchboard SMTP test",
+		BodyPreview:  body,
+		Status:       status,
+		ErrorMessage: errText,
+		TriggeredBy:  pgtype.UUID{Bytes: userID, Valid: true},
+	})
+	if logErr == nil {
+		_, _ = h.queries.CreateEmailOutboundRecipient(r.Context(), db.CreateEmailOutboundRecipientParams{
+			LogID:        logRow.ID,
+			Email:        user.Email,
+			UserID:       pgtype.UUID{Bytes: user.ID, Valid: true},
+			Status:       recStatus,
+			ErrorMessage: errText,
+		})
+	}
+
+	if sendErr != nil {
 		auth.WriteJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"ok":    false,
-			"error": err.Error(),
+			"error": sendErr.Error(),
 		})
 		return
 	}
@@ -299,4 +330,147 @@ func (h *Handler) TestSMTP(w http.ResponseWriter, r *http.Request) {
 		"ok":      true,
 		"message": "Test email sent to " + user.Email,
 	})
+}
+
+type emailRecipientsResponse struct {
+	WeeklyDigestRoles []string               `json:"weekly_digest_roles"`
+	CriticalCVERoles  []string               `json:"critical_cve_roles"`
+	Preview           []emailRecipientPreview `json:"preview"`
+}
+
+type emailRecipientPreview struct {
+	ID     string   `json:"id"`
+	Email  string   `json:"email"`
+	Name   string   `json:"name"`
+	Roles  []string `json:"roles"`
+}
+
+func (h *Handler) GetEmailRecipients(w http.ResponseWriter, r *http.Request) {
+	digestRoles := EmailRecipientRoles(r.Context(), h.queries, "weekly_digest")
+	criticalRoles := EmailRecipientRoles(r.Context(), h.queries, "critical_cve")
+	roleSet := map[string]struct{}{}
+	for _, rname := range digestRoles {
+		roleSet[rname] = struct{}{}
+	}
+	for _, rname := range criticalRoles {
+		roleSet[rname] = struct{}{}
+	}
+	allRoles := make([]string, 0, len(roleSet))
+	for rname := range roleSet {
+		allRoles = append(allRoles, rname)
+	}
+	users, err := h.queries.GetUsersByRoleNames(r.Context(), allRoles)
+	if err != nil {
+		http.Error(w, `{"error":"server error"}`, http.StatusInternalServerError)
+		return
+	}
+	preview := make([]emailRecipientPreview, 0, len(users))
+	for _, u := range users {
+		roles, _ := h.queries.GetUserRoles(r.Context(), u.ID)
+		names := make([]string, 0, len(roles))
+		for _, role := range roles {
+			names = append(names, role.Name)
+		}
+		name := u.Username
+		if u.DisplayName.Valid && u.DisplayName.String != "" {
+			name = u.DisplayName.String
+		}
+		preview = append(preview, emailRecipientPreview{
+			ID:    u.ID.String(),
+			Email: u.Email,
+			Name:  name,
+			Roles: names,
+		})
+	}
+	auth.WriteJSON(w, http.StatusOK, emailRecipientsResponse{
+		WeeklyDigestRoles: digestRoles,
+		CriticalCVERoles:  criticalRoles,
+		Preview:           preview,
+	})
+}
+
+type updateEmailRecipientsRequest struct {
+	WeeklyDigestRoles []string `json:"weekly_digest_roles"`
+	CriticalCVERoles  []string `json:"critical_cve_roles"`
+}
+
+func (h *Handler) UpdateEmailRecipients(w http.ResponseWriter, r *http.Request) {
+	var req updateEmailRecipientsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		return
+	}
+	if err := SaveEmailRecipientRoles(r.Context(), h.queries, req.WeeklyDigestRoles, req.CriticalCVERoles); err != nil {
+		http.Error(w, `{"error":"failed to save"}`, http.StatusInternalServerError)
+		return
+	}
+	h.GetEmailRecipients(w, r)
+}
+
+func (h *Handler) ListEmailLog(w http.ResponseWriter, r *http.Request) {
+	eventType := r.URL.Query().Get("event_type")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	rows, err := h.queries.ListEmailOutboundLog(r.Context(), db.ListEmailOutboundLogParams{
+		Column1: eventType,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
+	if err != nil {
+		http.Error(w, `{"error":"server error"}`, http.StatusInternalServerError)
+		return
+	}
+	total, _ := h.queries.CountEmailOutboundLog(r.Context(), eventType)
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	recByLog := map[uuid.UUID][]db.EmailOutboundRecipient{}
+	if len(ids) > 0 {
+		recs, err := h.queries.ListEmailOutboundRecipientsByLogIDs(r.Context(), ids)
+		if err == nil {
+			for _, rec := range recs {
+				recByLog[rec.LogID] = append(recByLog[rec.LogID], rec)
+			}
+		}
+	}
+	items := make([]map[string]interface{}, 0, len(rows))
+	for _, row := range rows {
+		recs := recByLog[row.ID]
+		recipients := make([]map[string]interface{}, 0, len(recs))
+		for _, rec := range recs {
+			item := map[string]interface{}{
+				"email":  rec.Email,
+				"status": rec.Status,
+			}
+			if rec.ErrorMessage.Valid {
+				item["error_message"] = rec.ErrorMessage.String
+			}
+			if rec.UserID.Valid {
+				item["user_id"] = uuid.UUID(rec.UserID.Bytes).String()
+			}
+			recipients = append(recipients, item)
+		}
+		entry := map[string]interface{}{
+			"id":              row.ID,
+			"event_type":      row.EventType,
+			"subject":         row.Subject,
+			"body_preview":    row.BodyPreview,
+			"status":          row.Status,
+			"created_at":      row.CreatedAt,
+			"recipient_count": len(recipients),
+			"recipients":      recipients,
+		}
+		if row.ErrorMessage.Valid {
+			entry["error_message"] = row.ErrorMessage.String
+		}
+		items = append(items, entry)
+	}
+	auth.WriteJSON(w, http.StatusOK, map[string]interface{}{"items": items, "total": total})
 }

@@ -531,6 +531,26 @@ type DeploymentReport struct {
 	ReceivedAt    time.Time   `json:"received_at"`
 }
 
+type EmailOutboundLog struct {
+	ID           uuid.UUID   `json:"id"`
+	EventType    string      `json:"event_type"`
+	Subject      string      `json:"subject"`
+	BodyPreview  string      `json:"body_preview"`
+	Status       string      `json:"status"`
+	ErrorMessage pgtype.Text `json:"error_message"`
+	TriggeredBy  pgtype.UUID `json:"triggered_by"`
+	CreatedAt    time.Time   `json:"created_at"`
+}
+
+type EmailOutboundRecipient struct {
+	ID           uuid.UUID   `json:"id"`
+	LogID        uuid.UUID   `json:"log_id"`
+	Email        string      `json:"email"`
+	UserID       pgtype.UUID `json:"user_id"`
+	Status       string      `json:"status"`
+	ErrorMessage pgtype.Text `json:"error_message"`
+}
+
 type Notification struct {
 	ID        uuid.UUID   `json:"id"`
 	UserID    uuid.UUID   `json:"user_id"`

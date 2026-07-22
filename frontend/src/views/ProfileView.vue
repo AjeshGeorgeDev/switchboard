@@ -13,11 +13,39 @@ const loginHistory = ref<any[]>([])
 const prefs = ref<any[]>([])
 const prefForm = ref([
   { channel: 'email', event_type: 'weekly_digest', enabled: true },
+  { channel: 'email', event_type: 'critical_cve', enabled: true },
   { channel: 'email', event_type: 'deployment_report', enabled: false },
+  { channel: 'teams', event_type: 'critical_cve', enabled: true },
   { channel: 'teams', event_type: 'deployment_report', enabled: true },
+  { channel: 'in_app', event_type: 'weekly_digest', enabled: true },
+  { channel: 'in_app', event_type: 'critical_cve', enabled: true },
   { channel: 'in_app', event_type: 'deployment_report', enabled: true },
 ])
 
+const prefLabels: Record<string, string> = {
+  'email/weekly_digest': 'Email · Weekly digest',
+  'email/critical_cve': 'Email · Critical CVE alerts',
+  'email/deployment_report': 'Email · Deployment reports',
+  'teams/critical_cve': 'Teams · Critical CVE alerts',
+  'teams/deployment_report': 'Teams · Deployment reports',
+  'in_app/weekly_digest': 'In-app · Weekly digest',
+  'in_app/critical_cve': 'In-app · Critical CVE alerts',
+  'in_app/deployment_report': 'In-app · Deployment reports',
+}
+
+function prefLabel(p: { channel: string; event_type: string }) {
+  return prefLabels[`${p.channel}/${p.event_type}`] || `${p.channel} / ${p.event_type}`
+}
+
+function mergePrefs(saved: any[]) {
+  const byKey = new Map(saved.map((p) => [`${p.channel}/${p.event_type}`, p]))
+  prefForm.value = prefForm.value.map((defaults) => {
+    const hit = byKey.get(`${defaults.channel}/${defaults.event_type}`)
+    return hit
+      ? { channel: hit.channel, event_type: hit.event_type, enabled: !!hit.enabled }
+      : { ...defaults }
+  })
+}
 function formatDate(value: unknown) {
   if (!value) return '—'
   const d = new Date(String(value))
@@ -30,7 +58,7 @@ async function load() {
   loginHistory.value = await api.get('/api/profile/login-history')
   try {
     prefs.value = await api.get('/api/profile/notification-preferences')
-    if (prefs.value.length) prefForm.value = prefs.value
+    if (prefs.value.length) mergePrefs(prefs.value)
   } catch { /* use defaults */ }
 }
 
@@ -46,7 +74,7 @@ async function savePrefs() {
     <section class="surface-card section">
       <h2 class="section-title">Notification Preferences</h2>
       <div v-for="(p, i) in prefForm" :key="i" class="pref-row">
-        <span class="pref-label">{{ p.channel }} / {{ p.event_type }}</span>
+        <span class="pref-label">{{ prefLabel(p) }}</span>
         <Checkbox v-model="p.enabled" binary />
       </div>
       <Button label="Save Preferences" @click="savePrefs" />

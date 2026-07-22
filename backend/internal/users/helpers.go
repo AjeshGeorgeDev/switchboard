@@ -10,8 +10,8 @@ import (
 	"github.com/switchboard/switchboard/internal/auth"
 	"github.com/switchboard/switchboard/internal/config"
 	"github.com/switchboard/switchboard/internal/db"
+	"github.com/switchboard/switchboard/internal/notifications"
 	"github.com/switchboard/switchboard/internal/settings"
-	"gopkg.in/gomail.v2"
 )
 
 func toUserDTO(user db.User, roles []db.Role) UserDTO {
@@ -50,22 +50,21 @@ func inviteURL(cfg config.Config, token string) string {
 	return fmt.Sprintf("%s/invite?token=%s", base, token)
 }
 
-func sendInviteEmail(ctx context.Context, q *db.Queries, cfg config.Config, email, inviteLink string) error {
+func sendInviteEmail(ctx context.Context, q *db.Queries, cfg config.Config, email, inviteLink string, triggeredBy *uuid.UUID) error {
 	smtp := settings.ResolveSMTP(ctx, q, cfg)
-	if !smtp.Configured() {
-		return nil
-	}
-	m := gomail.NewMessage()
-	m.SetHeader("From", smtp.From)
-	m.SetHeader("To", email)
-	m.SetHeader("Subject", "You're invited to Switchboard")
-	body := fmt.Sprintf(
+	html := fmt.Sprintf(
 		`<p>You have been invited to join Switchboard.</p><p><a href="%s">Accept invitation and set your password</a></p><p>This link expires in 7 days.</p>`,
 		inviteLink,
 	)
-	m.SetBody("text/html", body)
-	d := gomail.NewDialer(smtp.Host, smtp.Port, smtp.User, smtp.Pass)
-	return d.DialAndSend(m)
+	return notifications.SendOutbound(ctx, q, smtp, []notifications.MailRecipient{
+		notifications.RecipientForEmail(email),
+	}, notifications.OutboundOptions{
+		EventType:   "invite",
+		Subject:     "You're invited to Switchboard",
+		HTMLBody:    html,
+		PlainBody:   "You have been invited to join Switchboard. Open the invite link to set your password.",
+		TriggeredBy: triggeredBy,
+	})
 }
 
 func (h *Handler) assignRoles(ctx context.Context, userID uuid.UUID, roleIDs []string) error {

@@ -23,6 +23,8 @@ type Config struct {
 	TrivyWebhookSecret     string
 	CVEPullCron            string
 	CVEPullEnabled         bool
+	DigestCron             string
+	DigestEnabled          bool
 	SMTPHost               string
 	SMTPPort               int
 	SMTPUser               string
@@ -57,6 +59,8 @@ func Load() Config {
 		TrivyWebhookSecret:     getEnv("TRIVY_WEBHOOK_SECRET", ""),
 		CVEPullCron:            getEnv("CVE_PULL_CRON", "0 6 * * 0"),
 		CVEPullEnabled:         getEnv("CVE_PULL_ENABLED", "false") == "true",
+		DigestCron:             getEnv("DIGEST_CRON", "0 9 * * 1"),
+		DigestEnabled:          getEnv("DIGEST_ENABLED", "true") == "true",
 		SMTPHost:               getEnv("SMTP_HOST", ""),
 		SMTPPort:               smtpPort,
 		SMTPUser:               getEnv("SMTP_USER", ""),

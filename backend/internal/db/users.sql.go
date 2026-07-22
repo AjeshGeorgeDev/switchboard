@@ -251,6 +251,48 @@ func (q *Queries) GetUsersByRoleName(ctx context.Context, name string) ([]User, 
 	return items, nil
 }
 
+const getUsersByRoleNames = `-- name: GetUsersByRoleNames :many
+SELECT DISTINCT u.id, u.username, u.email, u.display_name, u.auth_type, u.password_hash, u.oidc_provider, u.oidc_subject, u.oidc_email, u.last_login_at, u.is_active, u.created_at, u.updated_at FROM users u
+JOIN user_roles ur ON ur.user_id = u.id
+JOIN roles r ON r.id = ur.role_id
+WHERE r.name = ANY($1::text[]) AND u.is_active = TRUE
+ORDER BY u.email
+`
+
+func (q *Queries) GetUsersByRoleNames(ctx context.Context, dollar_1 []string) ([]User, error) {
+	rows, err := q.db.Query(ctx, getUsersByRoleNames, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.Email,
+			&i.DisplayName,
+			&i.AuthType,
+			&i.PasswordHash,
+			&i.OidcProvider,
+			&i.OidcSubject,
+			&i.OidcEmail,
+			&i.LastLoginAt,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsers = `-- name: ListUsers :many
 SELECT id, username, email, display_name, auth_type, password_hash, oidc_provider, oidc_subject, oidc_email, last_login_at, is_active, created_at, updated_at FROM users ORDER BY created_at DESC
 `

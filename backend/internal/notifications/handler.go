@@ -2,7 +2,6 @@ package notifications
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -11,7 +10,6 @@ import (
 	"github.com/switchboard/switchboard/internal/config"
 	"github.com/switchboard/switchboard/internal/db"
 	"github.com/switchboard/switchboard/internal/settings"
-	"gopkg.in/gomail.v2"
 )
 
 type Handler struct {
@@ -170,24 +168,4 @@ func (h *Handler) SMTPStatus(w http.ResponseWriter, r *http.Request) {
 		"from":            cfg.From,
 		"pass_configured": cfg.Pass != "",
 	})
-}
-
-func sendSMTP(smtp settings.SMTPConfig, users []db.User, event Event) error {
-	if !smtp.Configured() {
-		return nil
-	}
-	m := gomail.NewMessage()
-	m.SetHeader("From", smtp.From)
-	var recipients []string
-	for _, u := range users {
-		recipients = append(recipients, u.Email)
-	}
-	if len(recipients) == 0 {
-		return nil
-	}
-	m.SetHeader("To", recipients...)
-	m.SetHeader("Subject", event.Title)
-	m.SetBody("text/html", fmt.Sprintf("<h1>%s</h1><p>%s</p>", event.Title, event.Body))
-	d := gomail.NewDialer(smtp.Host, smtp.Port, smtp.User, smtp.Pass)
-	return d.DialAndSend(m)
 }

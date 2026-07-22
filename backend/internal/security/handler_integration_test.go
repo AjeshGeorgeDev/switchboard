@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,6 +101,61 @@ func TestListReportsAndGetReportIntegration(t *testing.T) {
 	got := testutil.DecodeJSON[db.DeploymentReport](t, getRec.Result())
 	if got.AppName != appName {
 		t.Fatalf("app_name %q", got.AppName)
+	}
+}
+
+func TestOverviewAndExportIntegration(t *testing.T) {
+	queries, pool := testutil.QueriesAndPool(t)
+	ctx := context.Background()
+	suffix := uuid.New().String()[:8]
+	image := fmt.Sprintf("test/%s-overview", suffix)
+
+	_, err := queries.UpsertCVEFinding(ctx, db.UpsertCVEFindingParams{
+		ImageName:    image,
+		ImageTag:     "v1",
+		CveID:        "CVE-2024-CRIT-" + suffix,
+		Severity:     "critical",
+		FixedVersion: pgtype.Text{String: "1.2.3", Valid: true},
+		Source:       "webhook",
+		ScanDate:     time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM cve_findings WHERE image_name = $1`, image)
+	})
+
+	h := NewHandler(queries)
+
+	ovReq := httptest.NewRequest(http.MethodGet, "/?top=5", nil)
+	ovRec := httptest.NewRecorder()
+	h.Overview(ovRec, ovReq)
+	if ovRec.Code != http.StatusOK {
+		t.Fatalf("overview status %d body %s", ovRec.Code, ovRec.Body.String())
+	}
+	ov := testutil.DecodeJSON[map[string]interface{}](t, ovRec.Result())
+	stats, ok := ov["stats"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("missing stats: %#v", ov)
+	}
+	if stats["critical_count"].(float64) < 1 {
+		t.Fatalf("expected critical_count >= 1, got %v", stats["critical_count"])
+	}
+
+	exReq := httptest.NewRequest(http.MethodGet, "/?search="+suffix, nil)
+	exRec := httptest.NewRecorder()
+	h.ExportCVEs(exRec, exReq)
+	if exRec.Code != http.StatusOK {
+		t.Fatalf("export status %d", exRec.Code)
+	}
+	ct := exRec.Header().Get("Content-Type")
+	if !strings.Contains(ct, "text/csv") {
+		t.Fatalf("content-type %q", ct)
+	}
+	body := exRec.Body.String()
+	if !strings.Contains(body, "cve_id") || !strings.Contains(body, "CVE-2024-CRIT-"+suffix) {
+		t.Fatalf("unexpected csv body: %s", body)
 	}
 }
 

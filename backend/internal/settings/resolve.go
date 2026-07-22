@@ -20,6 +20,9 @@ const (
 	KeySMTPUser = "smtp.user"
 	KeySMTPPass = "smtp.pass"
 	KeySMTPFrom = "smtp.from"
+
+	KeyEmailRolesWeeklyDigest = "email.roles.weekly_digest"
+	KeyEmailRolesCriticalCVE  = "email.roles.critical_cve"
 )
 
 // HarborConfig is the effective Harbor integration config (DB overrides env).
